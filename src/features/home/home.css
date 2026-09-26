@@ -1,0 +1,179 @@
+/* Home-only styles (loaded with the Home chunk). Class names double as GSAP targets. */
+
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.035;
+  background: url('/noise.png') repeat;
+}
+
+/* ---------- Hero ---------- */
+
+.corner-ui {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--color-subtle);
+  opacity: 0;
+}
+.corner-ui span {
+  transition: color 0.3s ease;
+}
+.corner-ui span:hover {
+  color: #fff;
+}
+.corner-ui.top-left {
+  top: 7rem;
+  left: 3rem;
+}
+.corner-ui.top-right {
+  top: 7rem;
+  right: 3rem;
+  align-items: flex-end;
+}
+.corner-ui.bottom-left {
+  bottom: 3rem;
+  left: 3rem;
+}
+.corner-ui.bottom-right {
+  bottom: 3rem;
+  right: 3rem;
+  align-items: flex-end;
+}
+
+.hero-center {
+  opacity: 0;
+}
+
+/* ---------- Shared ---------- */
+
+/* Sections are transparent on purpose: the site background runs the full page (see ScrollVeil). */
+.home-section {
+  z-index: 10;
+}
+
+.editorial-header {
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  color: var(--color-subtle);
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.editorial-header::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: var(--color-line);
+}
+
+/* ---------- Explore: outlined words with a scroll-driven white fill ---------- */
+
+.explore-word {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 10.5vw, 10.5rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.explore-word__outline {
+  display: block;
+  color: transparent;
+  /* Michroma is a static font — no overlapping-contour artefacts in the stroke. */
+  -webkit-text-stroke: 1px rgb(255 255 255 / 0.3);
+}
+.explore-word__fill {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  /* --fill (0–100%) is written by GSAP as the word scrolls through the viewport. */
+  clip-path: inset(0 calc(100% - var(--fill, 0%)) 0 0);
+  transition: clip-path 0.7s var(--ease-cinematic);
+  pointer-events: none;
+}
+.explore-word:hover .explore-word__fill,
+.explore-word:focus-visible .explore-word__fill {
+  clip-path: inset(0 0 0 0);
+}
+.explore-word:focus-visible {
+  outline-offset: 8px;
+}
+
+.explore-meta {
+  transition:
+    opacity 0.5s var(--ease-cinematic),
+    translate 0.5s var(--ease-cinematic);
+}
+/* On pointer devices the question appears on hover / focus, or once the word has filled on scroll. */
+@media (hover: hover) {
+  .explore-meta {
+    opacity: 0;
+    translate: -10px 0;
+  }
+  .explore-row[data-dir='-1'] .explore-meta {
+    translate: 10px 0;
+  }
+  .explore-row:hover .explore-meta,
+  .explore-row:focus-within .explore-meta,
+  .explore-row.is-filled .explore-meta {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* ---------- Process (sticky stacking cards) ---------- */
+
+.process-card {
+  box-shadow: 0 -24px 60px rgb(0 0 0 / 0.55);
+  will-change: transform;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 768px) {
+  .corner-ui {
+    font-size: 0.6rem;
+  }
+  .corner-ui.top-left {
+    top: 6rem;
+    left: 1.25rem;
+  }
+  .corner-ui.top-right {
+    top: 6rem;
+    right: 1.25rem;
+  }
+  .corner-ui.bottom-left {
+    bottom: 2rem;
+    left: 1.25rem;
+  }
+  .corner-ui.bottom-right {
+    bottom: 2rem;
+    right: 1.25rem;
+  }
+}
+
+/* Without motion, show everything in its final state. */
+@media (prefers-reduced-motion: reduce) {
+  .corner-ui,
+  .hero-center {
+    opacity: 1;
+  }
+  .explore-word__fill {
+    clip-path: inset(0 0 0 0);
+  }
+  .explore-meta {
+    opacity: 1 !important;
+    translate: 0 0 !important;
+  }
+}

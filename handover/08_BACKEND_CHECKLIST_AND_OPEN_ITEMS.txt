@@ -1,0 +1,170 @@
+================================================================================
+ 08  BACKEND CHECKLIST, OPEN ITEMS AND INTEGRATION TESTING
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. BUILD CHECKLIST  (tick these off)
+--------------------------------------------------------------------------------
+
+  Infrastructure
+  [ ] API service created (separate from this repo - the frontend is static)
+  [ ] PostgreSQL database + migrations (file 05, Part C)
+  [ ] HTTPS base URL decided, e.g. https://api.hackb4.com/v1
+  [ ] CORS: hackb4.com, www.hackb4.com, Vercel preview domains,
+      http://localhost:5173 ; methods GET, POST, OPTIONS ; header Content-Type
+  [ ] Error format { "message": "..." } on every non-2xx
+  [ ] Rate limiting on all POST endpoints
+  [ ] Logging / error monitoring on the API
+
+  Read endpoints (file 04, Part A)
+  [ ] A1  GET /events  (+ ?category)   published only, includes past events
+  [ ] A2  GET /events/:slug            404 for unknown/unpublished
+  [ ] A3  GET /services                seeded with the 11 services
+  [ ] A4  GET /team                    seeded with the 4 members
+  [ ] A5  GET /ad-campaigns/active     returns null when none
+  [ ] A6  GET /stats
+  [ ] A7  GET /projects?featured=true
+  [ ] A8  GET /builders?featured=true  opted-in people only
+  [ ] A9  GET /team-openings?limit=
+  [ ] A10 GET /activity?limit=         newest first
+
+  Write endpoints (file 04, Part B)
+  [ ] B1  POST /contact                + email alert to the team
+  [ ] B2  POST /service-inquiries      + email alert to sales
+  [ ] B3  POST /newsletter/subscribe   idempotent upsert, stores source
+  [ ] B4  POST /notifications/subscribe  (stores token; real push later)
+  [ ] B5  POST /events/:id/conversions   fast insert, 204
+
+  Content / admin
+  [ ] A way for the team to add/edit events, ad campaigns, projects,
+      builders, team openings, activity and stats (admin panel, Supabase
+      table editor, or scripts). The frontend has no admin UI.
+  [ ] Image hosting for event banners / ads / team photos (S3, Cloudinary,
+      Supabase Storage) - URLs must be public https.
+
+  Go-live
+  [ ] Vercel env: VITE_API_BASE_URL=<prod API>, VITE_USE_MOCKS=false,
+      VITE_SITE_URL=https://hackb4.com  -> redeploy
+  [ ] Run the smoke test in section 4 on production
+
+
+--------------------------------------------------------------------------------
+2. OPEN QUESTIONS FOR THE BUSINESS / PRODUCT OWNER
+--------------------------------------------------------------------------------
+
+  1. Real platform stats (builders, hackathons, projects, countries,
+     submissions). The current numbers are placeholders.
+  2. Headquarters address: site says "San Francisco, CA / Virtual
+     Worldwide" but the phone is Indian (+91). Confirm.
+     (src/content/site.ts)
+  3. Real social media URLs - currently twitter.com and discord.com
+     placeholders. (src/content/site.ts)
+  4. Projects, builders, team openings and activity: is there real data
+     yet? If not, should those Home sections be hidden until there is?
+     (Today, with empty lists: the activity ticker hides itself, Projects
+     shows "No projects in this domain yet", and the builders / team
+     openings areas are simply blank.)
+  5. Push notifications: FCM or OneSignal? Who owns the account?
+  6. Who receives contact / inquiry alert emails? Which email service
+     (SES, Resend, SendGrid...)?
+  7. utm_campaign is fixed to "hackathon_2026" for every event. OK, or
+     per-event?
+  8. Does Devnovate offer a webhook/export of completed registrations (to
+     measure real conversions and fill participants_count)?
+  9. Accounts / login (/auth/*): when? This decides whether the users table
+     and auth are needed now.
+ 10. Privacy Policy and Terms of Service pages - needed before collecting
+     emails at scale (and for push notifications).
+
+
+--------------------------------------------------------------------------------
+3. KNOWN LIMITATIONS / TECH DEBT IN THE FRONTEND  (FYI, not blockers)
+--------------------------------------------------------------------------------
+
+  - Push opt-in sends a fake token (file 07 section 5). Needs joint work.
+  - No pagination: /events must return everything. Fine up to ~100 events.
+  - Event search is client-side over the loaded list only.
+  - "N TEAMS LOOKING FOR MEMBERS" on Home counts the items returned by
+    /team-openings?limit=3, so it never shows more than 3. If you want the
+    real total, we could add a count to /stats (e.g. open_teams) - frontend
+    change needed.
+  - No CAPTCHA / honeypot on public forms - rely on server rate limiting for
+    now; add a CAPTCHA later if spam appears.
+  - SEO tags are set client-side; per-event link previews on WhatsApp /
+    LinkedIn show the default site preview (file 06, section 3).
+  - sitemap.xml is static and doesn't list event pages.
+  - No ad impression/click tracking (file 07 section 6).
+  - ErrorBoundary logs to console only; hook up Sentry or similar if wanted
+    (src/app/ErrorBoundary.tsx, componentDidCatch).
+  - The spec asked for Next.js; the frontend is Vite + React SPA
+    (file 01 section 1). No server routes in this repo.
+
+
+--------------------------------------------------------------------------------
+4. INTEGRATION TEST PLAN  (run with your API connected)
+--------------------------------------------------------------------------------
+
+  Setup: .env.local with VITE_API_BASE_URL=<your API>, VITE_USE_MOCKS=false,
+  `npm run dev`, open http://localhost:5173 with DevTools open
+  (Console + Network tabs). Clear site data first.
+
+  Home  /
+  [ ] Network shows 6 GETs: events?category=hackathon, stats,
+      projects?featured=true, builders?featured=true, team-openings?limit=3,
+      activity?limit=10 - all 200, no CORS errors.
+  [ ] Stats band shows your numbers.
+  [ ] Hackathon tabs: an event with start < now < end appears under Active;
+      future under Upcoming; past under Completed.
+  [ ] A hackathon WITHOUT the optional fields still renders (just shorter).
+  [ ] Projects filter chips match your categories.
+  [ ] Activity ticker shows items newest first with "xH AGO".
+  [ ] "Talk to us" -> submit -> row in service_inquiries.
+  [ ] Footer newsletter -> row with source "footer"; submit same email
+      again -> still success.
+  [ ] "Join HACKB4" -> early access -> row/source "early_access:account".
+
+  Events  /events
+  [ ] ALL shows every published event; each category button calls
+      /events?category=... and shows only that category.
+  [ ] An unpublished event does NOT appear.
+  [ ] Scroll past 50% -> ad popup appears once; reload in same tab -> not
+      again; new private window -> again. With no active campaign -> never.
+  [ ] Push prompt "Enable" -> POST /notifications/subscribe 2xx.
+
+  Event detail  /events/<slug>
+  [ ] Real slug -> page renders with correct dates in local time.
+  [ ] Fake slug (/events/does-not-exist) -> API returns 404 -> site 404 page.
+  [ ] REGISTER NOW -> new tab to Devnovate with utm_* params, and a
+      POST /events/<id>/conversions in Network (204).
+
+  Services  /services
+  [ ] 11 cards with correct icons (no "?" icons).
+  [ ] Submit inquiry -> row with service_type = card title.
+  [ ] Make the API return 400 { "message": "Test error" } -> the text
+      "Test error" appears in red in the modal.
+
+  Team  /our-team
+  [ ] Photos load (check image URLs are public).
+
+  Contact  /contact
+  [ ] Submit -> row in contact_messages + alert email received.
+
+  Failure behaviour
+  [ ] Stop the API -> pages show error state with RETRY (not blank);
+      forms show an error message; nothing crashes.
+  [ ] Slow API (> 15 s) -> request is aborted and error state shown.
+
+
+--------------------------------------------------------------------------------
+5. WHO TO ASK / WHERE TO LOOK
+--------------------------------------------------------------------------------
+
+  JSON shape question         -> src/lib/api/types.ts (source of truth)
+  "What URL does X call?"     -> src/lib/api/index.ts (httpApi)
+  Example JSON                -> src/lib/api/mocks/data.ts, mocks/product.ts
+  Short contract table        -> docs/API_CONTRACT.md
+  See components with data    -> npm run dev, open /dev/ui
+  Contract changes            -> agree with the frontend team first, then
+                                 update types.ts + API_CONTRACT.md + these
+                                 files together.

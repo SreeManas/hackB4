@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>HACKB4 — NO BORDERS JUST BUILDERS</title>
+    <meta
+      name="description"
+      content="HACKB4 is a global builder community running hackathons, placement drives, workshops and open-source sprints for students, startups and enterprises."
+    />
+    <meta name="theme-color" content="#050505" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://hackb4.com/" />
+
+    <!-- Open Graph / Twitter (updated per route at runtime) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HACKB4" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="HACKB4 — NO BORDERS JUST BUILDERS" />
+    <meta
+      property="og:description"
+      content="A global builder community: hackathons, placement drives, workshops and open-source sprints."
+    />
+    <meta property="og:image" content="https://hackb4.com/og-image.jpg" />
+    <meta property="og:url" content="https://hackb4.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Fonts: preconnect + non-blocking load with swap -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Michroma&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Michroma&family=JetBrains+Mono:wght@400;500&display=swap"
+      media="print"
+      onload="this.media = 'all'"
+    />
+    <noscript
+      ><link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Michroma&family=JetBrains+Mono:wght@400;500&display=swap"
+    /></noscript>
+
+    <!-- Hero poster is the LCP candidate on Home -->
+    <link rel="preload" as="image" href="/assets/videos/hero-poster.jpg" fetchpriority="high" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "HACKB4",
+        "url": "https://hackb4.com",
+        "logo": "https://hackb4.com/apple-touch-icon.png",
+        "email": "info@hackb4.com"
+      }
+    </script>
+    <style>
+      html {
+        background: #050505;
+        color: #e5e5e5;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>HACKB4 needs JavaScript enabled to run.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

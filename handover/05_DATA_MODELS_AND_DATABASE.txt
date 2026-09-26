@@ -1,0 +1,377 @@
+================================================================================
+ 05  DATA MODELS AND SUGGESTED DATABASE SCHEMA
+================================================================================
+
+Source of truth for shapes: src/lib/api/types.ts
+Original spec: "Website Architecture & Technical Specification.pdf", section 6.
+
+Part A lists every JSON type the frontend uses, field by field.
+Part B lists where the built frontend DIFFERS from the spec PDF.
+Part C is a suggested PostgreSQL schema covering everything (spec tables,
+adjusted, plus the tables the spec did not have).
+
+Legend:  (req) required, never null      (opt) may be omitted or null
+
+
+================================================================================
+ PART A - JSON TYPES
+================================================================================
+
+--------------------------------------------------------------------------------
+Event          returned by GET /events, GET /events/:slug
+--------------------------------------------------------------------------------
+  id                          string  (req)  used for conversion tracking URL
+  title                       string  (req)
+  slug                        string  (req)  unique, URL-safe: lowercase, hyphens
+                                             e.g. "robotics-open-2026"
+  short_summary               string  (req)  1 sentence; card text + SEO description
+  detailed_description        string  (req)  plain text (NOT HTML/Markdown - it is
+                                             rendered as a single paragraph)
+  banner_image_url            string  (req)  absolute URL, landscape ~2:1
+  devnovate_registration_url  string  (req)  absolute https URL
+  category                    string  (req)  "hackathon" | "placement" | "workshop"
+  event_type                  string  (req)  "virtual" | "in_person" | "hybrid" | "pan_india"
+  location                    string  (req)  free text, e.g. "Bengaluru", "Online"
+  start_date                  string  (req)  ISO 8601 UTC
+  end_date                    string  (req)  ISO 8601 UTC  (spec allows NULL - frontend
+                                             does not; see Part B)
+  is_featured                 boolean (req)
+  --- optional listing fields (cards hide what's missing) ---
+  tags                        string[] (opt) tracks, e.g. ["AI","FINTECH"]; shown
+                                             UPPERCASE "AI x FINTECH"
+  duration_hours              integer (opt)  e.g. 24 -> "24H"
+  team_size_min               integer (opt)
+  team_size_max               integer (opt)  1 -> "SOLO", 2..4 -> "TEAM 2-4"
+  participants_count          integer (opt)  "1,240 BUILDERS" / "REGISTERED"
+  prize_pool_inr              integer (opt)  whole rupees; 200000 -> "Rs 2L"
+
+  NOT sent: status. The frontend computes it:
+     now < start_date           -> upcoming
+     now > end_date             -> completed
+     otherwise                  -> active ("closing soon" if ends within 3 days)
+
+--------------------------------------------------------------------------------
+Service        GET /services
+--------------------------------------------------------------------------------
+  id            string (req)
+  title         string (req)   also used as service_type in inquiries
+  description   string (req)
+  icon          string (req)   one of: TerminalSquare, Building2, Megaphone,
+                               CalendarDays, Rocket, CircleDollarSign, Users,
+                               Briefcase, Handshake, Gift, GraduationCap
+
+--------------------------------------------------------------------------------
+TeamMember     GET /team
+--------------------------------------------------------------------------------
+  id     string (req)
+  name   string (req)
+  role   string (req)   e.g. "CEO", "C.T.O"
+  image  string (req)   URL or site path; portrait 3:4
+
+--------------------------------------------------------------------------------
+AdCampaign     GET /ad-campaigns/active
+--------------------------------------------------------------------------------
+  id                         string  (req)
+  title                      string  (req)  headline in the popup
+  image_url                  string  (req)  banner, landscape
+  destination_url            string  (req)  opens in new tab
+  target_page                string  (req)  e.g. "/events"
+  scroll_threshold_percent   integer (req)  0-100, popup after this % scrolled
+
+--------------------------------------------------------------------------------
+PlatformStats  GET /stats   (all integers, all required)
+--------------------------------------------------------------------------------
+  builders, hackathons, projects, countries, submissions
+
+--------------------------------------------------------------------------------
+Project        GET /projects?featured=true
+--------------------------------------------------------------------------------
+  id               string   (req)
+  number           integer  (req)  display number: 47 -> "PROJECT 047"
+  slug             string   (req)  reserved for future project page
+  title            string   (req)
+  tagline          string   (req)
+  description      string   (opt)  shown only on the large first card
+  categories       string[] (req)  domains; drive the filter chips
+  tech             string[] (req)  tech stack tags
+  team_name        string   (req)
+  hackathon_title  string   (opt)
+  award            string   (opt)  e.g. "WINNER", "FINALIST"
+
+--------------------------------------------------------------------------------
+Builder        GET /builders?featured=true
+--------------------------------------------------------------------------------
+  id                string   (req)
+  name              string   (req)  initials are shown as avatar (no photo)
+  handle            string   (req)  reserved for future profile URL
+  role              string   (req)  e.g. "AI / Full Stack"
+  stack             string[] (req)
+  hackathons_count  integer  (req)
+  projects_count    integer  (req)
+  city              string   (opt)
+  open_to_team      boolean  (req)  shows "Open to team" badge
+
+--------------------------------------------------------------------------------
+TeamOpening    GET /team-openings
+--------------------------------------------------------------------------------
+  id               string   (req)
+  team_name        string   (req)
+  hackathon_title  string   (req)
+  roles            string[] (req)  roles wanted
+  members_count    integer  (req)  current members
+  team_size        integer  (req)  total seats (>= members_count)
+
+--------------------------------------------------------------------------------
+ActivityItem   GET /activity
+--------------------------------------------------------------------------------
+  id          string (req)
+  type        string (req)  "submission" | "team_formed" | "award" | "hackathon_launched"
+  actor       string (req)  who (builder or team name)
+  target      string (req)  what (project or hackathon title)
+  created_at  string (req)  ISO 8601 UTC
+
+--------------------------------------------------------------------------------
+Request bodies (POST)
+--------------------------------------------------------------------------------
+  ContactMessage     { name, email, message }                    all required
+  ServiceInquiry     { client_name, organization_name, email, service_type }  required
+                     { organization_type, phone, budget_range, message }       optional
+  Newsletter         { email, source? }
+  Push               { token }
+  ConversionPayload  { source, medium, campaign? }
+  MutationResult     response of POSTs: { success: boolean, message?: string }
+
+
+================================================================================
+ PART B - DIFFERENCES FROM THE SPEC PDF  (decide/resolve these)
+================================================================================
+
+ 1. events.event_type values
+    Spec comment:  'virtual', 'onsite', 'hybrid'  (default 'pan_india')
+    Frontend:      'virtual', 'in_person', 'hybrid', 'pan_india'
+    -> Use 'in_person' in the DB, or map 'onsite' -> 'in_person' in the API.
+       An unknown value would show an empty format label on hackathon cards.
+
+ 2. events.end_date
+    Spec: nullable.   Frontend: required (status, countdown, date range and
+    Google structured data all use it).
+    -> Make it NOT NULL, or have the API return start_date when it's null.
+
+ 3. events.short_summary / detailed_description / banner_image_url / location
+    Spec: nullable.   Frontend: expects strings.
+    -> NOT NULL in DB, or return "" from the API. banner_image_url should
+       always have a real image.
+
+ 4. Extra event fields not in the spec
+    tags, duration_hours, team_size_min, team_size_max, participants_count,
+    prize_pool_inr  -> add as nullable columns (see Part C).
+
+ 5. events.is_published, ad_campaigns.is_active/start_date/end_date,
+    service_inquiries.status, users.*, push_subscriptions.browser/os/is_active
+    -> server-side only; never sent to the frontend. Filter with them.
+
+ 6. Tables the spec does not have but the frontend needs:
+      services, team_members, contact_messages, newsletter_subscribers,
+      event_conversions, projects, builders, team_openings, activity,
+      (stats can be computed - no table needed)
+
+ 7. users table / authentication
+    The spec includes login/register and /auth/* pages. The frontend has NOT
+    built them: all login/join buttons open an "early access" modal. The users
+    table can wait until accounts are scheduled. push_subscriptions.user_id
+    will be NULL for now.
+
+ 8. Contact form
+    Spec: "inquiry form with service-type dropdown" on /contact.
+    Built: /contact has a simple name/email/message form; service-specific
+    inquiries go through the Services page modal. So contact messages and
+    service inquiries are two different endpoints/tables.
+
+ 9. Push endpoint path
+    Spec: /api/notifications/subscribe.  Frontend: {base}/notifications/subscribe
+    (include /api in the base URL if you want it).
+
+
+================================================================================
+ PART C - SUGGESTED POSTGRESQL SCHEMA
+================================================================================
+
+-- Requires: CREATE EXTENSION IF NOT EXISTS pgcrypto;  (for gen_random_uuid)
+-- Adjust freely; only the JSON output shape is fixed.
+
+CREATE TABLE events (
+  id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title                       VARCHAR(255) NOT NULL,
+  slug                        VARCHAR(255) UNIQUE NOT NULL,
+  short_summary               TEXT NOT NULL,
+  detailed_description        TEXT NOT NULL,
+  banner_image_url            TEXT NOT NULL,
+  devnovate_registration_url  TEXT NOT NULL,
+  category    VARCHAR(20) NOT NULL CHECK (category IN ('hackathon','placement','workshop')),
+  event_type  VARCHAR(20) NOT NULL DEFAULT 'pan_india'
+              CHECK (event_type IN ('virtual','in_person','hybrid','pan_india')),
+  location                    VARCHAR(150) NOT NULL,
+  start_date                  TIMESTAMPTZ NOT NULL,
+  end_date                    TIMESTAMPTZ NOT NULL,
+  is_featured                 BOOLEAN NOT NULL DEFAULT FALSE,
+  is_published                BOOLEAN NOT NULL DEFAULT TRUE,
+  tags                        TEXT[],
+  duration_hours              INT,
+  team_size_min               INT,
+  team_size_max               INT,
+  participants_count          INT,
+  prize_pool_inr              BIGINT,
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX events_category_idx ON events (category) WHERE is_published;
+
+CREATE TABLE event_conversions (
+  id          BIGSERIAL PRIMARY KEY,
+  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  source      VARCHAR(50) NOT NULL,
+  medium      VARCHAR(50) NOT NULL,
+  campaign    VARCHAR(100),
+  user_agent  TEXT,
+  referrer    TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE services (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        VARCHAR(100) UNIQUE NOT NULL,
+  description  TEXT NOT NULL,
+  icon         VARCHAR(40) NOT NULL,
+  sort_order   INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE team_members (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(120) NOT NULL,
+  role        VARCHAR(80) NOT NULL,
+  image       TEXT NOT NULL,
+  sort_order  INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE ad_campaigns (                 -- as spec
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title                     VARCHAR(150) NOT NULL,
+  image_url                 TEXT NOT NULL,
+  destination_url           TEXT NOT NULL,
+  target_page               VARCHAR(100) NOT NULL DEFAULT '/events',
+  scroll_threshold_percent  INT NOT NULL DEFAULT 50
+                            CHECK (scroll_threshold_percent BETWEEN 0 AND 100),
+  is_active                 BOOLEAN NOT NULL DEFAULT TRUE,
+  start_date                TIMESTAMPTZ,
+  end_date                  TIMESTAMPTZ,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE service_inquiries (            -- as spec
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_name        VARCHAR(120) NOT NULL,
+  organization_name  VARCHAR(200) NOT NULL,
+  organization_type  VARCHAR(50),
+  email              VARCHAR(255) NOT NULL,
+  phone              VARCHAR(20),
+  service_type       VARCHAR(100) NOT NULL,
+  budget_range       VARCHAR(50),
+  message            TEXT,
+  status             VARCHAR(30) NOT NULL DEFAULT 'pending',  -- pending|contacted|closed
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE contact_messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(120) NOT NULL,
+  email       VARCHAR(255) NOT NULL,
+  message     TEXT NOT NULL,
+  status      VARCHAR(30) NOT NULL DEFAULT 'new',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE newsletter_subscribers (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email            VARCHAR(255) UNIQUE NOT NULL,   -- store lower-cased
+  sources          TEXT[] NOT NULL DEFAULT '{}',   -- every source seen, e.g. {footer,early_access:teams}
+  is_active        BOOLEAN NOT NULL DEFAULT TRUE,  -- false after unsubscribe
+  subscribed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Upsert: INSERT ... ON CONFLICT (email) DO UPDATE
+--         SET sources = array(SELECT DISTINCT unnest(newsletter_subscribers.sources || EXCLUDED.sources))
+
+CREATE TABLE push_subscriptions (           -- as spec
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID,                      -- REFERENCES users(id) once users exist
+  device_token   TEXT UNIQUE NOT NULL,
+  browser        VARCHAR(50),
+  os             VARCHAR(50),
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  subscribed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE projects (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  number           SERIAL UNIQUE,
+  slug             VARCHAR(255) UNIQUE NOT NULL,
+  title            VARCHAR(200) NOT NULL,
+  tagline          VARCHAR(255) NOT NULL,
+  description      TEXT,
+  categories       TEXT[] NOT NULL DEFAULT '{}',
+  tech             TEXT[] NOT NULL DEFAULT '{}',
+  team_name        VARCHAR(120) NOT NULL,
+  event_id         UUID REFERENCES events(id) ON DELETE SET NULL,  -- -> hackathon_title
+  award            VARCHAR(50),
+  is_featured      BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE builders (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              VARCHAR(120) NOT NULL,
+  handle            VARCHAR(50) UNIQUE NOT NULL,
+  role              VARCHAR(80) NOT NULL,
+  stack             TEXT[] NOT NULL DEFAULT '{}',
+  hackathons_count  INT NOT NULL DEFAULT 0,
+  projects_count    INT NOT NULL DEFAULT 0,
+  city              VARCHAR(80),
+  open_to_team      BOOLEAN NOT NULL DEFAULT FALSE,
+  is_featured       BOOLEAN NOT NULL DEFAULT FALSE   -- only with the person's consent
+);
+
+CREATE TABLE team_openings (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_name      VARCHAR(120) NOT NULL,
+  event_id       UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,  -- -> hackathon_title
+  roles          TEXT[] NOT NULL DEFAULT '{}',
+  members_count  INT NOT NULL,
+  team_size      INT NOT NULL,
+  is_open        BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (members_count <= team_size)
+);
+
+CREATE TABLE activity (
+  id          BIGSERIAL PRIMARY KEY,
+  type        VARCHAR(30) NOT NULL
+              CHECK (type IN ('submission','team_formed','award','hackathon_launched')),
+  actor       VARCHAR(120) NOT NULL,
+  target      VARCHAR(200) NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX activity_created_idx ON activity (created_at DESC);
+
+-- users: as in the spec PDF, when accounts are built.
+
+-- /stats can be computed, e.g.:
+--   builders    = SELECT COUNT(*) FROM builders   (or registered users)
+--   hackathons  = SELECT COUNT(*) FROM events WHERE category='hackathon' AND is_published
+--   projects    = SELECT COUNT(*) FROM projects
+--   countries / submissions = admin-maintained numbers (a small key/value table)
+-- Cache the result; it does not need to be live to the second.
+
+Seed data: the 11 services, 4 team members and example events are in
+src/lib/api/mocks/data.ts and mocks/product.ts. The services and team are
+REAL content; the hackathons, projects, builders, openings, activity and stats
+are fictional placeholders - do not seed production with them.

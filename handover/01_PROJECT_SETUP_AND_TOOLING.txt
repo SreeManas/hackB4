@@ -1,0 +1,194 @@
+================================================================================
+ 01  PROJECT SETUP, TOOLING, ENVIRONMENT AND DEPLOYMENT
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. TECH STACK (what the frontend is built with)
+--------------------------------------------------------------------------------
+
+  Language        TypeScript 5 (strict mode)
+  UI library      React 18
+  Build tool      Vite 5 (dev server + production bundler)
+  Routing         react-router-dom 7 (client-side routing, BrowserRouter)
+  Data fetching   @tanstack/react-query 5 (caching, loading/error states)
+  Styling         Tailwind CSS 4 (utility classes) + small custom CSS files
+  Animation       framer-motion (component animations), GSAP (scroll
+                  choreography on Home), Lenis (smooth scrolling)
+  3D              three.js + @react-three/fiber (star field background)
+  Icons           lucide-react
+  Code quality    ESLint 9, Prettier 3, Husky + lint-staged (pre-commit hook)
+  Hosting         Vercel (static hosting, see vercel.json)
+
+  IMPORTANT DIFFERENCE FROM THE SPEC PDF:
+  The spec recommended Next.js with API routes. The frontend was built as a
+  plain Vite + React single-page app instead. Consequences for you:
+   - There are NO server-side API routes in this repo. The backend must be a
+     separate service (Express, Fastify, NestJS, Supabase functions, etc.).
+   - The frontend is static files. It calls your API over HTTPS from the
+     browser, so CORS must be configured (see file 04).
+   - The spec path "/api/notifications/subscribe" becomes
+     "{VITE_API_BASE_URL}/notifications/subscribe". If you want "/api" in the
+     URL, put it in the base URL, e.g. https://hackb4.com/api or
+     https://api.hackb4.com/v1.
+
+
+--------------------------------------------------------------------------------
+2. REQUIREMENTS
+--------------------------------------------------------------------------------
+
+  - Node.js 18 or newer (20 LTS recommended)
+  - npm (comes with Node)
+  - Git (optional, only needed for the pre-commit hook)
+
+
+--------------------------------------------------------------------------------
+3. NPM SCRIPTS (from package.json)
+--------------------------------------------------------------------------------
+
+  npm install           Install dependencies. Also runs "prepare" which sets up
+                        the Husky git hook (harmless if not a git repo).
+
+  npm run dev           Start the dev server at http://localhost:5173 with hot
+                        reload. Uses mock data unless .env.local says otherwise.
+
+  npm run build         Typecheck (tsc) and then build the production site into
+                        the dist/ folder.
+
+  npm run preview       Serve the built dist/ folder locally to test the
+                        production build.
+
+  npm run typecheck     TypeScript check only, no output files.
+  npm run lint          ESLint check.
+  npm run lint:fix      ESLint with automatic fixes.
+  npm run format        Prettier: rewrite all files to the house style.
+  npm run format:check  Prettier: only check.
+  npm run check         typecheck + lint + format:check (run before merging).
+
+  Pre-commit hook (.husky/pre-commit): runs lint-staged, which runs
+  eslint --fix and prettier on the files being committed.
+
+
+--------------------------------------------------------------------------------
+4. ENVIRONMENT VARIABLES
+--------------------------------------------------------------------------------
+
+  Defined in .env.example (copy it to .env.local for local work).
+  They are read in ONE place: src/config/env.ts.
+
+  All VITE_* values are baked into the JavaScript at BUILD time and are PUBLIC
+  (anyone can read them in the browser). NEVER put secrets here - no DB
+  passwords, no API secret keys, no FCM server keys.
+
+  VITE_API_BASE_URL
+      Base URL of your REST API, without trailing slash.
+      Example: https://api.hackb4.com/v1
+      Every endpoint path is appended to it, e.g. base + "/events".
+      Empty -> the frontend uses mock data.
+
+  VITE_USE_MOCKS
+      "true"  -> force mock data even if VITE_API_BASE_URL is set.
+      "false" -> use the real API (when VITE_API_BASE_URL is set).
+      Logic in src/config/env.ts:
+          useMocks = (base URL is empty) OR (VITE_USE_MOCKS === "true")
+
+  VITE_SITE_URL
+      Public origin of the website, e.g. https://hackb4.com.
+      Used for canonical URLs, Open Graph tags and structured data (SEO).
+      Default: https://hackb4.com
+
+  Because values are baked in at build time, changing them on Vercel requires
+  a REDEPLOY to take effect.
+
+
+--------------------------------------------------------------------------------
+5. CONNECTING THE FRONTEND TO YOUR API (local)
+--------------------------------------------------------------------------------
+
+  1. Run your API, e.g. on http://localhost:4000/v1
+  2. In the frontend project root create .env.local:
+
+         VITE_API_BASE_URL=http://localhost:4000/v1
+         VITE_USE_MOCKS=false
+
+  3. Allow CORS on your API for origin http://localhost:5173
+  4. Restart `npm run dev` (env files are only read on start).
+  5. Open the browser DevTools -> Network tab. You should see requests going
+     to localhost:4000. Mock mode logs "[mock api] ..." in the console instead.
+
+  To go back to mocks: set VITE_USE_MOCKS=true or delete .env.local.
+
+
+--------------------------------------------------------------------------------
+6. PRODUCTION BUILD OUTPUT
+--------------------------------------------------------------------------------
+
+  `npm run build` produces dist/ containing index.html + hashed JS/CSS chunks.
+  The build splits big libraries into separate long-cached files
+  (vite.config.ts -> manualChunks):
+      vendor-react, vendor-motion, vendor-gsap, vendor-three
+  Each page is also its own lazily-loaded chunk (see src/app/routes.tsx).
+
+  If a user has an old tab open during a new deploy and a chunk file is gone,
+  the app reloads itself once to pick up the new build (routes.tsx, key
+  "hb4_chunk_reload" in sessionStorage).
+
+
+--------------------------------------------------------------------------------
+7. DEPLOYMENT (Vercel)
+--------------------------------------------------------------------------------
+
+  vercel.json contains one rewrite rule:
+      every path that is not under /assets/ and has no file extension
+      -> serve /index.html
+
+  This is required for a single-page app: when someone opens
+  https://hackb4.com/events/some-slug directly, Vercel serves index.html and
+  React Router shows the right page.
+
+  Vercel settings:
+      Build command:     npm run build
+      Output directory:  dist
+      Env vars:          VITE_API_BASE_URL, VITE_USE_MOCKS=false, VITE_SITE_URL
+
+  If you host the API on the same domain under /api (e.g. Vercel serverless or
+  a reverse proxy), make sure /api/* is NOT caught by the SPA rewrite above -
+  add an explicit rewrite/route for /api before it.
+
+
+--------------------------------------------------------------------------------
+8. CONFIG FILES IN THE PROJECT ROOT
+--------------------------------------------------------------------------------
+
+  package.json         Dependencies and scripts (section 3).
+  package-lock.json    Exact dependency versions. Commit it; do not hand-edit.
+  vite.config.ts       Vite config: React + Tailwind plugins, "@" import alias
+                       pointing to src/, vendor chunk splitting.
+  tsconfig.json        TypeScript settings for src/ (strict, "@/*" alias).
+  tsconfig.node.json   TypeScript settings for vite.config.ts itself.
+  eslint.config.js     Lint rules (TypeScript + React hooks rules).
+  .prettierrc.json     Formatting rules (+ Tailwind class sorting plugin).
+  .prettierignore      Files Prettier skips.
+  .editorconfig        Editor basics (indent, line endings).
+  .gitattributes       Line-ending normalisation for git.
+  .gitignore           Ignores node_modules, dist, .env files, logs.
+  .env.example         Template for environment variables (section 4).
+  index.html           The single HTML page. Holds default SEO/Open Graph tags,
+                       Google Fonts loading, Organization JSON-LD, and the
+                       <div id="root"> React mounts into.
+  vercel.json          SPA rewrite rule (section 7).
+  .husky/              Git pre-commit hook.
+
+  public/              Files served as-is at the site root:
+     favicon.svg, apple-touch-icon.png, og-image.jpg (social share image),
+     noise.png (texture), robots.txt, sitemap.xml,
+     assets/team/*.webp|jpeg   team photos (used by mock /team data),
+     assets/videos/*           hero/background video + poster images.
+
+  NOTE: public/sitemap.xml is static. Event detail pages (/events/:slug) are
+  not listed in it. If SEO for individual events matters, the backend (or a
+  build step) should generate the sitemap from the events table.
+
+  Other root files (not used by the build):
+     Website Architecture & Technical Specification.pdf  - original spec
+     WhatsApp Image *.jpeg  - original team photos (copies live in public/)

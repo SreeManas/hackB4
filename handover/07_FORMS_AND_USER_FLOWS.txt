@@ -1,0 +1,205 @@
+================================================================================
+ 07  FORMS AND USER FLOWS  (step by step, including what reaches the backend)
+================================================================================
+
+Shared behaviour of all forms (hook: src/hooks/useSubmit.ts):
+  - Browser-side validation first: required fields, email format, max length
+    (the browser blocks submit and highlights the field). Your API must still
+    validate everything - browser checks are easy to bypass.
+  - All text values are trimmed before sending.
+  - While sending: button shows a spinner / "SENDING...", further clicks are
+    ignored (no double submit from double-clicks).
+  - Success = any 2xx from your API.
+  - Failure = non-2xx -> the "message" from your JSON is shown under the form
+    in red. Network failure shows the browser's message (e.g. "Failed to
+    fetch"). The user can fix and resubmit.
+
+
+--------------------------------------------------------------------------------
+1. CONTACT FORM   (/contact)
+--------------------------------------------------------------------------------
+  File: src/features/contact/components/ContactForm.tsx
+
+  1. User fills Your Name (max 120), Email Address (max 254),
+     Message (max 2000). All required.
+  2. Clicks "/ SEND MESSAGE".
+  3. POST /contact
+        { "name": "...", "email": "...", "message": "..." }
+  4. 2xx  -> form replaced by "Message Received - We'll be in touch with you
+             shortly." After 3 seconds the empty form comes back.
+     error -> message shown, form keeps the typed values.
+
+  Backend TODO: store it, notify the team by email, maybe auto-reply.
+
+
+--------------------------------------------------------------------------------
+2. SERVICE INQUIRY (lead capture)
+--------------------------------------------------------------------------------
+  Files: src/features/services/components/InquiryModal.tsx
+  Opened from:
+    a) /services - clicking any of the 11 service cards
+    b) Home "For organizations" - "Talk to us" on Colleges / Corporates /
+       Sponsors (pre-set to "Hackathons", "Corporate Hackathons
+       Organization", "Sponsorship")
+
+  1. Modal opens: "Requesting details for: <service title>".
+  2. Fields: Client Name* (120), Email* (254), Organization* (160),
+     Message (optional, 2000).
+  3. Clicks "/ SUBMIT INQUIRY".
+  4. POST /service-inquiries
+        {
+          "service_type": "<service title>",
+          "client_name": "...",
+          "email": "...",
+          "organization_name": "...",
+          "message": "..."          <- key left out entirely if blank
+        }
+  5. 2xx  -> "Inquiry Sent - Our team will get back to you shortly."
+             Modal closes by itself after 3 seconds.
+     error -> message shown in the modal.
+  6. Modal can be closed any time with X, Escape or clicking outside.
+     Re-opening always starts with an empty form.
+
+  Not collected yet (the DB columns exist in the spec): organization_type,
+  phone, budget_range. If sales needs them, the frontend team can add fields
+  quickly - the type already supports them.
+
+
+--------------------------------------------------------------------------------
+3. NEWSLETTER + EARLY ACCESS  (both use POST /newsletter/subscribe)
+--------------------------------------------------------------------------------
+
+  3a. Footer newsletter (every page)
+      File: src/components/layout/Footer.tsx
+      1. User types email, presses the arrow button.
+      2. POST /newsletter/subscribe  { "email": "...", "source": "footer" }
+      3. 2xx  -> input cleared + toast "You're subscribed - We'll email you
+                 when new events go live."
+         error -> toast "Could not subscribe" + your message.
+
+  3b. "Early access" modal for features that don't exist yet
+      Files: src/components/product/ComingSoonProvider.tsx,
+             coming-soon-context.ts
+      Opened by (feature -> source value sent):
+        LOGIN, JOIN HACKB4 (navbar), Join HACKB4 (home final CTA)
+                                        -> "early_access:account"
+        View project, View all projects -> "early_access:projects"
+        View profile, Browse builders   -> "early_access:builders"
+        Join team, Post your team, Find a team
+                                        -> "early_access:teams"
+      1. Modal explains the upcoming feature, asks for email.
+      2. POST /newsletter/subscribe
+            { "email": "...", "source": "early_access:teams" }
+      3. 2xx  -> "You're on the list - We'll email you the moment it goes live."
+         error -> message under the email field.
+
+  Backend rules:
+   - Same email again must still return success (upsert). Record every
+     source you see for that email - it's a useful demand signal for which
+     feature to build next.
+   - Lower-case emails before storing/comparing.
+
+
+--------------------------------------------------------------------------------
+4. EVENT REGISTRATION + CONVERSION TRACKING  (event detail page)
+--------------------------------------------------------------------------------
+  File: src/features/events/components/EventInfoPanel.tsx
+  Spec section 4.1.
+
+  The site NEVER collects registrations or payments itself. Registration
+  happens on Devnovate.
+
+  1. User clicks "/ REGISTER NOW".
+  2. At the same moment:
+     a) The browser opens a NEW TAB to
+          <devnovate_registration_url>?utm_source=platform
+                                      &utm_medium=events_page
+                                      &utm_campaign=hackathon_2026
+        (existing query params on the URL are kept; utm_* are overwritten)
+        with rel="noopener noreferrer".
+        If the URL from the backend is malformed, it is opened as-is without
+        UTM params (no crash).
+     b) POST /events/<event id>/conversions
+          { "source": "platform", "medium": "events_page",
+            "campaign": "hackathon_2026" }
+        fire-and-forget (keepalive), result ignored.
+  3. Nothing else changes on the page.
+
+  Notes:
+   - Conversions are only tracked from the event DETAIL page button. The
+     cards on /events and Home link to the detail page, not to Devnovate.
+   - "hackathon_2026" is hard-coded for all events, including placement
+     drives and workshops. If marketing wants a per-event campaign, add a
+     field (e.g. utm_campaign) to Event and tell the frontend team.
+   - Devnovate will see the UTM params; if Devnovate can report back
+     completed registrations, that's how to measure real conversion rate.
+
+
+--------------------------------------------------------------------------------
+5. PUSH NOTIFICATION OPT-IN   (/events page)       ** NOT FINISHED **
+--------------------------------------------------------------------------------
+  File: src/features/engagement/PushOptIn.tsx
+  Spec section 4.3.
+
+  Current behaviour:
+  1. On /events, 2 seconds after load, a card slides in bottom-left:
+     "Stay Updated - Get notified about upcoming hackathons & placement
+     drives." [Enable] [Not Now] [X]
+  2. Not Now / X -> hidden forever for this browser
+     (localStorage key "push_optin_interacted" = true).
+  3. Enable -> POST /notifications/subscribe
+        { "token": "fcm-token-<random uuid>" }     <- FAKE TOKEN
+     2xx -> hidden forever.  error -> "Could not subscribe right now."
+
+  What is missing to make push real (needs backend + frontend together):
+   a) Choose FCM or OneSignal; create the project; get the public VAPID key
+      / web config (public values -> VITE_* env vars).
+   b) Frontend: add a service worker file (e.g. public/firebase-messaging-
+      sw.js), call Notification.requestPermission(), get the real token, send
+      it instead of the fake one. Replace the TODO(backend) line in
+      PushOptIn.tsx.
+   c) Backend: store tokens (upsert, device_token UNIQUE), mark inactive
+      when FCM says a token is invalid, and build a way (admin tool / script)
+      to send a notification to all tokens or by interest (spec: "filter by
+      interests, e.g. Hackathons only" - that would need an "interests"
+      field in the request body; agree on it first).
+   The FCM SERVER key / service account stays on the backend only.
+
+
+--------------------------------------------------------------------------------
+6. SCROLL-TRIGGERED AD POPUP   (/events page)
+--------------------------------------------------------------------------------
+  File: src/features/engagement/ScrollAdPopup.tsx,
+        src/hooks/useScrollThreshold.ts
+  Spec section 4.2.
+
+  1. When /events opens: GET /ad-campaigns/active?page=/events
+  2. null -> nothing ever happens.
+  3. A campaign -> the page watches scrolling. When the user has scrolled
+     past scroll_threshold_percent of the page height, a modal opens:
+     image_url on top, title, "DISCOVER MORE" button.
+  4. DISCOVER MORE -> destination_url in a new tab (noopener noreferrer),
+     modal closes.
+  5. Close with X, Escape, or clicking the dark overlay.
+  6. Frequency cap: once per browser SESSION per page
+     (sessionStorage key "ad_seen_/events"). A new tab/session sees it again.
+
+  No impression/click tracking is sent to the backend. If sponsors need ad
+  stats, add an endpoint (e.g. POST /ad-campaigns/:id/events
+  { type: "impression" | "click" }) and ask the frontend team to call it.
+
+
+--------------------------------------------------------------------------------
+7. BROWSER STORAGE KEYS USED BY THE FRONTEND  (for debugging)
+--------------------------------------------------------------------------------
+
+  localStorage   push_optin_interacted   push prompt answered (true/false)
+  sessionStorage ad_seen_/events         ad popup already shown this session
+  sessionStorage hb4_intro_seen          home intro animation already played
+  sessionStorage hb4_chunk_reload        one-time reload after a new deploy
+
+  To reset while testing: DevTools -> Application -> Storage -> Clear site
+  data, or open a private window.
+
+  No cookies are set by the frontend. No user tracking / analytics script is
+  installed (no Google Analytics etc.) - only the conversion POST above.

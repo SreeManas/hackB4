@@ -1,0 +1,189 @@
+================================================================================
+ 03  THE FRONTEND API LAYER  (how the site talks to your backend)
+================================================================================
+
+Folder: src/lib/api/
+  types.ts     data shapes
+  client.ts    low-level fetch wrapper
+  index.ts     list of all API functions + mock/real switch
+  queries.ts   react-query hooks + caching rules
+  mocks/       fake data
+
+
+--------------------------------------------------------------------------------
+1. client.ts  -  request(path, options)
+--------------------------------------------------------------------------------
+
+Every real HTTP call goes through this one function. What it does, step by step:
+
+  1. Builds the URL:  env.apiBaseUrl + path
+        e.g. "https://api.hackb4.com/v1" + "/events?category=hackathon"
+
+  2. Sets headers:
+        Accept: application/json                 (always)
+        Content-Type: application/json           (only when there is a body)
+     No cookies / credentials are sent (fetch default "same-origin").
+     No Authorization header (there is no login yet).
+
+  3. Body: JSON.stringify(body) for POSTs.
+
+  4. Timeout: 15 000 ms. After that the request is aborted and the user sees
+     an error state. Keep endpoints well under this.
+
+  5. Cancellation: when a user leaves a page before data arrives, react-query
+     aborts the request (AbortSignal). Your server may see closed connections -
+     that's normal.
+
+  6. Reading the response:
+        status 204          -> treated as "no content" (undefined)
+        any other status    -> tries to parse JSON; if parsing fails -> undefined
+
+  7. Errors: if the status is NOT 2xx, it throws an ApiError with:
+        message = body.message   if your JSON has a "message" string
+                = "Request failed (<status>)"   otherwise
+        status  = HTTP status code
+        body    = the parsed JSON (for debugging)
+
+     => ALWAYS return { "message": "..." } on errors. That exact text is
+        shown to the user under forms (e.g. "Please enter a valid email").
+
+  Network failures (server down, DNS, CORS blocked) throw the browser's own
+  TypeError ("Failed to fetch"). Forms then show that message; lists show a
+  generic "couldn't load" state with a Retry button. A CORS misconfiguration
+  looks exactly like "server down" in the UI - check the browser console.
+
+
+--------------------------------------------------------------------------------
+2. index.ts  -  the Api interface (the full list of backend calls)
+--------------------------------------------------------------------------------
+
+  Function                         HTTP call made by httpApi
+  -------------------------------  ---------------------------------------------
+  getEvents(category?)             GET  /events            or
+                                   GET  /events?category=<category>
+                                   (no query param when category is "all"/empty)
+  getEventBySlug(slug)             GET  /events/<slug>
+                                   404 -> returns null -> frontend shows 404 page
+  getServices()                    GET  /services
+  getTeamMembers()                 GET  /team
+  getActiveAdCampaign(page)        GET  /ad-campaigns/active?page=<page>
+  submitServiceInquiry(data)       POST /service-inquiries
+  submitContactForm(data)          POST /contact
+  subscribeNotification(token)     POST /notifications/subscribe   { token }
+  subscribeNewsletter(email,src)   POST /newsletter/subscribe      { email, source }
+  trackConversion(eventId, p)      POST /events/<eventId>/conversions
+                                   (fire-and-forget, keepalive, errors ignored)
+  getPlatformStats()               GET  /stats
+  getFeaturedProjects()            GET  /projects?featured=true
+  getFeaturedBuilders()            GET  /builders?featured=true
+  getTeamOpenings()                GET  /team-openings?limit=3
+  getActivity()                    GET  /activity?limit=10
+
+  All path parameters and query values are URL-encoded by the frontend.
+
+  The switch at the bottom of index.ts:
+      export const api = env.useMocks ? mockApi : httpApi;
+
+  mockApi returns copies of the data in mocks/ after a small fake delay
+  (150-800 ms) so loading states can be seen. In dev mode it logs every
+  submitted form to the browser console as "[mock api] ...".
+
+  Special behaviours worth knowing:
+   - getEventBySlug: ONLY a 404 is turned into "not found". Any other error
+     (500, timeout) shows an error screen with Retry. So return 404, not 200
+     with null, and not 500, for unknown slugs.
+   - trackConversion: uses fetch keepalive so the request survives the user
+     leaving the page (the register link opens in a new tab). Errors are
+     swallowed on purpose - analytics must never block the user.
+
+
+--------------------------------------------------------------------------------
+3. queries.ts  -  caching and refetching rules (react-query)
+--------------------------------------------------------------------------------
+
+  Global defaults (queryClient):
+      staleTime 5 minutes    - data is reused without refetching for 5 min
+                               (navigating Home -> Events -> Home does not
+                               re-hit the API).
+      retry 1                - a failed GET is retried once automatically.
+      refetchOnWindowFocus false - switching browser tabs does not refetch.
+
+  Cache keys (queryKeys):
+      ['events', category]      one cache entry per category
+      ['event', slug]
+      ['services'], ['team'], ['ad-campaign', page], ['stats'],
+      ['projects','featured'], ['builders','featured'],
+      ['team-openings'], ['activity']
+
+  Hooks and who uses them:
+      useEvents(category)   EventsPage, Home (Hero, Explore, Hackathons)
+                            Keeps showing the previous list while a new
+                            category loads (keepPreviousData).
+      useEvent(slug)        EventDetailPage
+      useServices()         ServicesPage
+      useTeam()             TeamPage
+      useAdCampaign(page)   ScrollAdPopup
+      usePlatformStats()    Home (Stats, Explore)
+      useFeaturedProjects() Home (Projects)
+      useFeaturedBuilders() Home (People)
+      useTeamOpenings()     Home (People, Explore)
+      useActivity()         Home (Community ticker) - staleTime 1 minute
+
+  NOTE for backend: Home calls /events?category=hackathon (one request, shared
+  by Hero, Explore and Hackathons thanks to the cache). The Events page with
+  "All" selected calls /events with no category.
+
+  Server-side caching: all GET endpoints are public and change rarely. You can
+  safely send Cache-Control: public, max-age=60 (or put a CDN in front).
+  /activity changes more often - keep its max-age short.
+
+
+--------------------------------------------------------------------------------
+4. How forms submit (useSubmit hook, src/hooks/useSubmit.ts)
+--------------------------------------------------------------------------------
+
+  Forms do NOT use react-query. They use useSubmit(action):
+      - status: idle -> submitting -> success | error
+      - a second click while submitting is ignored (no double POSTs from
+        double-clicks - but still make your endpoints tolerant of duplicates)
+      - on error: shows err.message (your API's "message")
+      - some forms reset back to idle 3 s after success
+
+  What counts as success: ANY 2xx response. The frontend does not currently
+  read the "success" or "message" fields of a 2xx body. Still return
+  { "success": true } so the contract stays consistent - the mock does.
+  To show an error, you MUST use a non-2xx status. Returning
+  200 { "success": false } would be shown to the user as success.
+
+
+--------------------------------------------------------------------------------
+5. Mock data  (src/lib/api/mocks/)
+--------------------------------------------------------------------------------
+
+  data.ts
+    mockEvents     3 general events (hackathon, placement, workshop)
+                   + the 6 hackathons from product.ts
+    mockServices   the 11 services from the spec, with icon names
+    mockTeam       4 team members; image paths point to /assets/team/*.webp
+                   (files that exist in public/)
+    mockAdCampaign one campaign for target_page "/events", threshold 50
+
+  product.ts
+    mockHackathons 6 hackathons: 2 active, 2 upcoming, 2 completed (dates are
+                   computed relative to "now" so the tabs always have data)
+    mockProjects, mockBuilders, mockTeamOpenings, mockPlatformStats,
+    mockActivity   fictional placeholder people / numbers
+
+  Use these files as ready-made JSON examples / seed data. The names, numbers
+  and stats are placeholders and must not go live as real data.
+
+
+--------------------------------------------------------------------------------
+6. Adding a NEW endpoint later (for the frontend team, FYI)
+--------------------------------------------------------------------------------
+
+  1. Add the response type to types.ts
+  2. Add the function to the Api interface in index.ts
+  3. Implement it in BOTH httpApi and mockApi
+  4. If it's a GET used by pages, add a key + hook in queries.ts
+  5. Update docs/API_CONTRACT.md

@@ -1,0 +1,230 @@
+================================================================================
+ 06  PAGES AND FEATURES WALKTHROUGH  (what every page does + its API calls)
+================================================================================
+
+Every page follows the same data pattern:
+   loading  -> grey skeleton placeholders
+   error    -> "couldn't load" message + RETRY button (re-calls the API)
+   empty    -> a friendly "nothing here yet" message
+   success  -> the content
+So a slow or failing endpoint never produces a blank or broken page.
+
+
+--------------------------------------------------------------------------------
+ALWAYS ON SCREEN (every page)
+--------------------------------------------------------------------------------
+
+  Navbar      Links: HOME, EVENTS, SERVICES, TEAM, CONTACT.
+              LOGIN and JOIN HACKB4 -> open "early access" modal (feature
+              "account") -> POST /newsletter/subscribe
+              source "early_access:account".
+              No API call on its own.
+
+  Footer      Links, email info@hackb4.com, phone, social icons, and the
+              newsletter form -> POST /newsletter/subscribe source "footer".
+              Privacy Policy / Terms of Service are plain text (pages not
+              built yet).
+
+  Background  Planet video + 3D star field. Static files, no API.
+
+  Offline banner   Shows when the device loses connection.
+
+
+--------------------------------------------------------------------------------
+1.  HOME   /
+--------------------------------------------------------------------------------
+
+  API calls (made in parallel when Home opens, each cached 5 min):
+     GET /events?category=hackathon
+     GET /stats
+     GET /projects?featured=true
+     GET /builders?featured=true
+     GET /team-openings?limit=3
+     GET /activity?limit=10
+
+  Sections top to bottom:
+
+  Intro loader     Animated brand intro, once per browser session.
+
+  Hero             Logo, headline, "Explore hackathons" (-> /events),
+                   "Explore platform" (scrolls down).
+                   Shows "N HACKATHONS LIVE NOW" if any hackathon is active
+                   today (from /events?category=hackathon). Hidden if 0.
+
+  Marquee          Scrolling list of tracks (static text).
+
+  Explore          Four big words, each with a live one-liner:
+                     IDEAS   "<n> HACKATHONS ACTIVE"          (events)
+                     PEOPLE  "<n> TEAMS LOOKING FOR MEMBERS"  (team-openings length)
+                     TECH    static text
+                     IMPACT  "<projects>+ PROJECTS SHIPPED"   (stats.projects)
+                   Clicking a word scrolls to its section.
+
+  Stats            5 numbers from GET /stats with labels Builders,
+                   Hackathons, Projects, Countries, Submissions.
+
+  Hackathons       Tabs Active / Upcoming / Completed. The frontend puts each
+                   hackathon in a tab from its dates and sorts:
+                     Active    - ending soonest first
+                     Upcoming  - starting soonest first
+                     Completed - most recently ended first
+                   Max 3 cards per tab. Opens on the first tab that has any.
+                   Card click -> /events/<slug>.
+                   "View all hackathons" -> /events.
+
+  How it works     4 steps (static). "Find a team" -> early access (teams).
+
+  Projects         Featured projects from GET /projects?featured=true.
+                   Filter chips built from all categories in the response.
+                   First project = big card. "View project" / "View all
+                   projects" -> early access (projects).
+
+  People           Left: featured builders (GET /builders?featured=true).
+                   Right: "Find your team" (GET /team-openings?limit=3).
+                   "View profile", "Browse builders" -> early access (builders)
+                   "Join team", "Post your team"     -> early access (teams)
+
+  Tech             Tools list (static).
+
+  Community        Statement + "Live on HACKB4" ticker from
+                   GET /activity?limit=10. Hidden if the list is empty.
+
+  For organizations  3 columns: Colleges / Corporates / Sponsors.
+                   "Talk to us" -> service inquiry modal pre-filled with
+                   service "Hackathons" / "Corporate Hackathons
+                   Organization" / "Sponsorship" -> POST /service-inquiries.
+
+  Final CTA        "Join HACKB4" -> early access (account).
+                   "Explore hackathons" -> /events.
+
+
+--------------------------------------------------------------------------------
+2.  EVENTS LIST   /events   and   /events?category=<category>
+--------------------------------------------------------------------------------
+
+  API calls
+     GET /events                     when "ALL EVENTS" is selected
+     GET /events?category=hackathon  / placement / workshop
+     GET /ad-campaigns/active?page=/events
+
+  What happens
+   - Category buttons: ALL EVENTS, HACKATHONS, PLACEMENT DRIVES, WORKSHOPS.
+     The chosen category is put in the URL (?category=hackathon) so the link
+     can be shared. An invalid category in the URL falls back to "all".
+     While a new category loads, the old list stays visible (dimmed).
+   - Search box: filters the ALREADY LOADED list in the browser, matching
+     title, short_summary, location and event_type. No API call per
+     keystroke. Shows "N EVENTS".
+   - Each card: banner image, category badge, title, summary, start date,
+     location, format, "VIEW DETAILS" -> /events/<slug>.
+   - Empty: "No events in this category yet" or "No events match ...".
+   - Ad popup: see file 07 section 6.
+   - Push opt-in prompt (bottom-left): see file 07 section 5.
+
+  Spec differences: the spec mentions "Corporate Challenges" and "Webinars"
+  categories and a location toggle. The built categories are hackathon,
+  placement, workshop; location is covered by the search box. Adding a
+  category later needs a small frontend change (src/features/events/
+  categories.ts and the EventCategory type).
+
+
+--------------------------------------------------------------------------------
+3.  EVENT DETAIL   /events/:slug
+--------------------------------------------------------------------------------
+
+  API calls
+     GET /events/<slug>
+     POST /events/<id>/conversions   when REGISTER NOW is clicked
+
+  What happens
+   - Big banner (banner_image_url) with category, title, short_summary.
+   - "ABOUT THE EVENT": detailed_description + one fixed marketing sentence.
+   - Side panel: date range (start - end in the visitor's locale), location,
+     format (event_type with "_" replaced by a space), REGISTER NOW.
+   - REGISTER NOW opens devnovate_registration_url in a NEW TAB with
+     ?utm_source=platform&utm_medium=events_page&utm_campaign=hackathon_2026
+     added (rel="noopener noreferrer"), and fires the conversion POST.
+     See file 07 section 4.
+   - 404 from the API -> the site's 404 page.
+     Other errors -> error message + Retry.
+   - SEO: page title = event title, description = short_summary, social
+     image = banner, and schema.org "Event" JSON-LD (for Google event rich
+     results) built from the event's dates, location, type and
+     registration URL.
+
+  Note: SEO tags are set by JavaScript in the browser. Google renders JS so
+  this works for Google; some social networks (WhatsApp, LinkedIn previews)
+  do not run JS and will show the site-wide default preview instead. If
+  per-event link previews matter, that needs server-side rendering or an
+  edge function - discuss with the frontend team.
+
+
+--------------------------------------------------------------------------------
+4.  SERVICES   /services
+--------------------------------------------------------------------------------
+
+  API calls
+     GET /services
+     POST /service-inquiries   when the modal form is submitted
+
+  What happens
+   - Grid of service cards (icon, title, description, "LEARN MORE").
+   - Clicking a card opens "Service Inquiry" modal for that service.
+     Form: Client Name*, Email*, Organization*, Message (optional).
+     See file 07 section 2.
+
+
+--------------------------------------------------------------------------------
+5.  OUR TEAM   /our-team
+--------------------------------------------------------------------------------
+
+  API calls
+     GET /team
+
+  What happens
+   - Grid of portrait cards: photo (grayscale, colour on hover), name, role.
+     Array order = display order.
+
+
+--------------------------------------------------------------------------------
+6.  CONTACT   /contact
+--------------------------------------------------------------------------------
+
+  API calls
+     POST /contact   on submit
+
+  What happens
+   - Left: email, phone and headquarters. These come from
+     src/content/site.ts, NOT from the API.
+   - Right: form Your Name*, Email Address*, Message*.
+     See file 07 section 1.
+
+
+--------------------------------------------------------------------------------
+7.  404 PAGE   (any unknown URL, or an event slug that returns 404)
+--------------------------------------------------------------------------------
+
+  No API calls. Glitching "404" + links home.
+
+
+--------------------------------------------------------------------------------
+8.  DEV-ONLY UI GALLERY   /dev/ui
+--------------------------------------------------------------------------------
+
+  Only exists when running `npm run dev`. Removed from production builds.
+  Shows every UI component and card with mock data. Useful to see how your
+  data will look (e.g. long titles, missing optional fields).
+
+
+--------------------------------------------------------------------------------
+9.  PAGES IN THE SPEC THAT ARE NOT BUILT
+--------------------------------------------------------------------------------
+
+  /auth/login, /auth/register, /auth/forgot-password, /auth/profile
+     -> not built. All account buttons open the early-access modal.
+  Project pages, builder profiles, team finder
+     -> not built. Buttons open the early-access modal.
+  Privacy Policy, Terms of Service
+     -> not built (plain text in footer).
+  Home "Testimonials" and "past partner logos" from the spec
+     -> not built (no data source yet).

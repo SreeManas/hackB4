@@ -1,0 +1,445 @@
+================================================================================
+ 04  API ENDPOINTS SPECIFICATION  (build exactly this)
+================================================================================
+
+Base URL: whatever you choose, e.g. https://api.hackb4.com/v1
+All paths below are relative to the base URL.
+
+
+--------------------------------------------------------------------------------
+GLOBAL RULES (apply to every endpoint)
+--------------------------------------------------------------------------------
+
+  Format      JSON request and response bodies, UTF-8.
+  Naming      snake_case field names, exactly as written here.
+  Dates       ISO 8601 strings in UTC: "2026-10-08T09:00:00.000Z"
+  IDs         strings. UUIDs are fine ("id": "3f2a...").
+  Auth        none. Every endpoint is public.
+  Errors      non-2xx status + { "message": "Human readable text" }
+                400 invalid input      e.g. { "message": "Please enter a valid email address." }
+                404 not found          (important for GET /events/:slug)
+                429 rate limited       e.g. { "message": "Too many requests. Please try again in a minute." }
+                500 server error       e.g. { "message": "Something went wrong. Please try again." }
+              The message is shown to the end user in forms - no stack traces,
+              no SQL errors.
+  Success     any 2xx. POST endpoints return { "success": true } (201 or 200).
+              Never return 200 with success:false for a failure - use 4xx/5xx.
+  Timeout     the browser aborts after 15 seconds.
+  CORS        Allow-Origin: https://hackb4.com (+ www, Vercel preview URLs,
+              http://localhost:5173 for development)
+              Allow-Methods: GET, POST, OPTIONS
+              Allow-Headers: Content-Type, Accept
+              Preflight (OPTIONS) must succeed for POSTs, since they send
+              Content-Type: application/json.
+  Lists       Return a plain JSON array, e.g. [ {...}, {...} ].
+              NOT wrapped like { "data": [...] }. Empty = [].
+  Optional    Optional fields may be omitted or sent as null - the frontend
+              treats both the same. Required fields must never be null.
+
+
+================================================================================
+ PART A - READ ENDPOINTS (GET)
+================================================================================
+
+--------------------------------------------------------------------------------
+A1.  GET /events
+--------------------------------------------------------------------------------
+
+  Purpose     List of events for the Events page and Home page.
+  Query       category  (optional)  "hackathon" | "placement" | "workshop"
+              No category param = all categories.
+  Response    200  Event[]
+
+  Used by     /events page (all or one category)
+              Home page: GET /events?category=hackathon (hero counter,
+              Explore "N HACKATHONS ACTIVE", Active/Upcoming/Completed tabs)
+
+  Rules
+   - Return only PUBLISHED events (is_published = true in the DB).
+   - Return past (completed) events too. The Home page has a "Completed" tab,
+     and it derives active/upcoming/completed from start_date/end_date by
+     itself - you do NOT send a status field.
+   - Order: any stable order is fine; recommended start_date ascending.
+     (Home re-sorts per tab; the Events page shows your order as-is.)
+   - Unknown category value -> return [] or 400; the frontend never sends one.
+   - No pagination is implemented in the frontend yet. Return all published
+     events. If the list will grow past ~100, agree on pagination first.
+
+  Example response (one item):
+  [
+    {
+      "id": "hk-101",
+      "title": "HACKB4 Global AI Challenge",
+      "slug": "hackb4-global-ai-challenge",
+      "short_summary": "Build intelligent systems solving real-world problems.",
+      "detailed_description": "A 24-hour global sprint for teams building applied AI ...",
+      "banner_image_url": "https://cdn.example.com/events/ai-challenge.jpg",
+      "devnovate_registration_url": "https://devnovate.com/register/hackb4-global-ai",
+      "category": "hackathon",
+      "event_type": "virtual",
+      "location": "Online",
+      "start_date": "2026-09-23T04:30:00.000Z",
+      "end_date": "2026-10-07T18:30:00.000Z",
+      "is_featured": true,
+      "tags": ["AI", "FINTECH"],
+      "duration_hours": 24,
+      "team_size_min": 2,
+      "team_size_max": 4,
+      "participants_count": 1240,
+      "prize_pool_inr": 200000
+    }
+  ]
+
+  Field rules: see Event in file 05. Key points:
+   - event_type must be "virtual" | "in_person" | "hybrid" | "pan_india"
+     (NOT "onsite" as the spec PDF comment says).
+   - devnovate_registration_url must be an absolute https URL.
+   - banner_image_url must be an absolute URL (it is also used for social
+     previews).
+   - tags ... prize_pool_inr are OPTIONAL. The card hides any that are
+     missing or null.
+
+
+--------------------------------------------------------------------------------
+A2.  GET /events/:slug
+--------------------------------------------------------------------------------
+
+  Purpose     One event for the detail page /events/<slug>.
+  Path        slug - URL-encoded event slug.
+  Response    200  Event  (same shape as one item of A1)
+              404  { "message": "Event not found" }  when the slug doesn't
+                   exist OR the event is unpublished.
+
+  IMPORTANT: 404 is the only status that shows the "not found" page. A 500 or
+  a 200 with null would show an error screen / break the page.
+
+  Used by     EventDetailPage: hero banner, title, description, date range,
+              location, format, REGISTER NOW button, SEO tags + Google Event
+              structured data.
+
+
+--------------------------------------------------------------------------------
+A3.  GET /services
+--------------------------------------------------------------------------------
+
+  Purpose     The 11 service cards on /services.
+  Response    200  Service[]   (display order = array order)
+
+  Example:
+  [
+    {
+      "id": "srv-01",
+      "title": "Hackathons",
+      "description": "End-to-end hackathon management, problem statement curation, judging platforms, and live support.",
+      "icon": "TerminalSquare"
+    }
+  ]
+
+  icon must be one of:
+    TerminalSquare, Building2, Megaphone, CalendarDays, Rocket,
+    CircleDollarSign, Users, Briefcase, Handshake, Gift, GraduationCap
+  Any other value shows a generic "?" icon (no crash).
+
+  NOTE: the service TITLE is what gets sent back as service_type when someone
+  submits an inquiry (see B2). Also the Home page "For organizations" section
+  hard-codes three titles: "Hackathons", "Corporate Hackathons Organization",
+  "Sponsorship". Keep those titles stable, or tell the frontend team.
+
+  The full list of 11 with descriptions is in src/lib/api/mocks/data.ts -
+  use it as seed data.
+
+
+--------------------------------------------------------------------------------
+A4.  GET /team
+--------------------------------------------------------------------------------
+
+  Purpose     Team members on /our-team.
+  Response    200  TeamMember[]  (display order = array order)
+
+  Example:
+  [
+    { "id": "team-01", "name": "Veerapaneni Yashwanth Kumar Chowdary",
+      "role": "CEO", "image": "https://cdn.example.com/team/yashwanth.webp" }
+  ]
+
+  image: absolute URL, or a site-relative path like "/assets/team/x.webp"
+  (the current photos are in the frontend's public/assets/team/ folder, so
+  those relative paths work). Portrait 3:4 ratio looks best.
+
+
+--------------------------------------------------------------------------------
+A5.  GET /ad-campaigns/active?page=<page>
+--------------------------------------------------------------------------------
+
+  Purpose     The scroll-triggered popup ad for a page.
+  Query       page - the page path. Currently only "/events" is requested.
+  Response    200  AdCampaign    when an active campaign targets that page
+              200  null          when there is none  (body is literally: null)
+
+  Example:
+  {
+    "id": "ad-001",
+    "title": "Join the Next Gen Builders Cohort",
+    "image_url": "https://cdn.example.com/ads/cohort.jpg",
+    "destination_url": "https://devnovate.com/cohort",
+    "target_page": "/events",
+    "scroll_threshold_percent": 50
+  }
+
+  Selection rule (server side): is_active = true AND target_page = page AND
+  (start_date is null OR start_date <= now) AND (end_date is null OR
+  end_date >= now). If several match, return one (e.g. newest).
+
+  Please return 200 null (not 404) for "no campaign". A 404 would be treated
+  as an error and retried; it would not break the page, but it's noise.
+
+  Frequency capping is done by the frontend (once per browser session per
+  page, sessionStorage key "ad_seen_/events"). No server tracking needed.
+
+
+--------------------------------------------------------------------------------
+A6.  GET /stats
+--------------------------------------------------------------------------------
+
+  Purpose     Platform totals on the Home page stats band.
+  Response    200  PlatformStats  (all integers)
+
+  { "builders": 12000, "hackathons": 320, "projects": 1800,
+    "countries": 48, "submissions": 92000 }
+
+  These can be computed (COUNT queries) or stored as admin-edited numbers.
+  All 5 fields are required. Shown as e.g. "12K+". The mock numbers are
+  placeholders - real figures must be confirmed by the business.
+
+
+--------------------------------------------------------------------------------
+A7.  GET /projects?featured=true
+--------------------------------------------------------------------------------
+
+  Purpose     Featured community projects on Home (first one is shown large).
+  Response    200  Project[]   (recommended 3; order = display order)
+
+  Example:
+  [
+    {
+      "id": "prj-047",
+      "number": 47,
+      "slug": "aura-health",
+      "title": "Aura Health",
+      "tagline": "Digital twin healthcare platform",
+      "description": "Builds a live model of each patient ...",
+      "categories": ["AI", "HEALTHCARE"],
+      "tech": ["FASTAPI", "PYTORCH", "REACT"],
+      "team_name": "Quantum Coders",
+      "hackathon_title": "Healthcare Futures Hack",
+      "award": "WINNER"
+    }
+  ]
+
+  categories drive the filter chips on Home (unique values across all items).
+  description, hackathon_title, award are optional.
+  There is no project detail page yet ("View project" opens early-access).
+
+
+--------------------------------------------------------------------------------
+A8.  GET /builders?featured=true
+--------------------------------------------------------------------------------
+
+  Purpose     Featured builder profiles on Home ("People" section).
+  Response    200  Builder[]   (recommended 4 - shown in a 2x2 grid)
+
+  Example:
+  [
+    { "id": "bld-01", "name": "Aarav Mehta", "handle": "aarav",
+      "role": "AI / Full Stack", "stack": ["React", "FastAPI", "PyTorch"],
+      "hackathons_count": 3, "projects_count": 12, "city": "Pune",
+      "open_to_team": true }
+  ]
+
+  PRIVACY: these are real people's public profiles. Only return builders who
+  have opted in to being featured. city is optional.
+
+
+--------------------------------------------------------------------------------
+A9.  GET /team-openings?limit=3
+--------------------------------------------------------------------------------
+
+  Purpose     "Find your team" list on Home.
+  Query       limit - max items (frontend sends 3).
+  Response    200  TeamOpening[]
+
+  Example:
+  [
+    { "id": "team-op-01", "team_name": "Quantum Coders",
+      "hackathon_title": "HACKB4 Global AI Challenge",
+      "roles": ["AI Engineer", "Frontend Developer"],
+      "members_count": 2, "team_size": 4 }
+  ]
+
+  Rules: members_count <= team_size. team_size should be small (it draws one
+  bar per seat; 1-6 is sensible). Recommended: only teams with open seats,
+  for hackathons that are not completed, newest first.
+  The Explore section displays "<array length> TEAMS LOOKING FOR MEMBERS", so
+  with limit=3 that number is at most 3. (See open items in file 08.)
+
+
+--------------------------------------------------------------------------------
+A10. GET /activity?limit=10
+--------------------------------------------------------------------------------
+
+  Purpose     "Live on HACKB4" scrolling ticker on Home.
+  Query       limit - max items (frontend sends 10).
+  Response    200  ActivityItem[]   NEWEST FIRST
+
+  Example:
+  [
+    { "id": "act-1", "type": "submission", "actor": "Quantum Coders",
+      "target": "Aura Health", "created_at": "2026-09-25T08:00:00.000Z" }
+  ]
+
+  type must be one of:
+     "submission"          -> "<actor> submitted <target>"
+     "team_formed"         -> "<actor> formed a team for <target>"
+     "award"               -> "<actor> won <target>"
+     "hackathon_launched"  -> "<actor> launched <target>"
+  Shown with relative time ("2H AGO"). Empty array hides the ticker.
+
+
+================================================================================
+ PART B - WRITE ENDPOINTS (POST)
+================================================================================
+
+General advice for all POSTs:
+  - Validate server-side (the browser validates too, but never trust it).
+  - Trim strings. Enforce the max lengths below.
+  - Rate-limit per IP (these are public, unauthenticated forms -> spam
+    target). Consider a CAPTCHA/honeypot later; the frontend has none yet.
+  - Return 201 { "success": true } on success.
+
+--------------------------------------------------------------------------------
+B1.  POST /contact
+--------------------------------------------------------------------------------
+
+  Purpose     Contact form on /contact.
+  Body        {
+                "name":    "Priya Sharma",            required, max 120
+                "email":   "priya@college.edu",       required, valid email, max 254
+                "message": "We'd like to host ..."    required, max 2000
+              }
+  Response    201 { "success": true }
+              400 { "message": "..." } on validation failure (shown in form)
+
+  After success the form shows "Message Received" for 3 s, then resets.
+  Suggested: store in a contact_messages table and email the team (the spec's
+  Sprint 3 asks for "automated email alerts").
+
+
+--------------------------------------------------------------------------------
+B2.  POST /service-inquiries
+--------------------------------------------------------------------------------
+
+  Purpose     Lead capture. Sent from:
+               - /services  (click any service card -> modal form)
+               - Home "For organizations" section ("Talk to us" buttons)
+  Body        {
+                "service_type":      "Startup Incubation",   required, the service TITLE
+                "client_name":       "Rahul Verma",          required, max 120
+                "email":             "rahul@acme.com",       required, max 254
+                "organization_name": "ACME Corp",            required, max 160
+                "message":           "Looking for ..."       optional, max 2000 (omitted if blank)
+              }
+              The type also allows organization_type, phone, budget_range
+              (all optional). The current forms DO NOT send them - accept
+              them if present, but don't require them.
+  Response    201 { "success": true }
+              400 { "message": "..." }
+
+  service_type is a free string (the title shown on the card). Match it
+  against the services table by title if you need a foreign key, or just
+  store the text (spec DDL: VARCHAR(100)).
+  Store with status 'pending' (spec DDL) and alert the sales team by email.
+
+
+--------------------------------------------------------------------------------
+B3.  POST /newsletter/subscribe
+--------------------------------------------------------------------------------
+
+  Purpose     Email list. Sent from:
+               - Footer "STAY IN THE LOOP" form           source = "footer"
+               - "Early access" modal for unbuilt features source =
+                    "early_access:projects" | "early_access:builders" |
+                    "early_access:teams"    | "early_access:account"
+                 (opened by LOGIN, JOIN HACKB4, View project, View profile,
+                  Join team, Find a team, Post your team, etc.)
+  Body        { "email": "you@college.edu", "source": "footer" }
+              email  required, max 254
+              source optional string (treat missing as "unknown")
+  Response    201 { "success": true }
+
+  IMPORTANT: repeat sign-ups with the same email MUST also return success
+  (idempotent upsert). Someone already subscribed who registers interest in
+  "teams" should just get that source recorded, not an error.
+  Consider double opt-in / unsubscribe links for email compliance.
+
+
+--------------------------------------------------------------------------------
+B4.  POST /notifications/subscribe
+--------------------------------------------------------------------------------
+
+  Purpose     Browser push notification opt-in ("Stay Updated" prompt on
+              /events).
+  Body        { "token": "..." }
+  Response    201 { "success": true }
+
+  CURRENT STATE - READ THIS:
+  Push is NOT wired up yet. The frontend currently sends a FAKE token
+  ("fcm-token-<random uuid>") and does not ask the browser for notification
+  permission or register a service worker. See file 07 section 5 and file 08
+  for what's needed. Until then, you can store tokens but they can't receive
+  pushes.
+
+  When real: token = the FCM registration token (or OneSignal player id).
+  Upsert on token (spec DDL: device_token UNIQUE). The spec's browser/os
+  columns can be derived from the User-Agent header.
+
+
+--------------------------------------------------------------------------------
+B5.  POST /events/:id/conversions
+--------------------------------------------------------------------------------
+
+  Purpose     Analytics: user clicked REGISTER NOW on an event detail page
+              (spec 4.1 "track conversion analytics").
+  Path        id - the event's id (NOT the slug).
+  Body        { "source": "platform", "medium": "events_page",
+                "campaign": "hackathon_2026" }
+              campaign is optional in the type; currently always sent.
+  Response    204 No Content (preferred) - or any 2xx.
+
+  Fire-and-forget: the frontend never waits for or shows the result, and
+  sends it with keepalive so it survives the tab switch. Make it fast and
+  cheap (a single INSERT). Unknown event id -> 404 is fine (ignored).
+  Consider storing timestamp, user agent and referrer; do NOT store raw IPs
+  without a privacy reason.
+
+
+================================================================================
+ SUMMARY TABLE
+================================================================================
+
+ #   Method Path                       Query/Body                    Response
+ --  ------ -------------------------- ----------------------------- ------------------
+ A1  GET    /events                    ?category=                    Event[]
+ A2  GET    /events/:slug              -                             Event | 404
+ A3  GET    /services                  -                             Service[]
+ A4  GET    /team                      -                             TeamMember[]
+ A5  GET    /ad-campaigns/active       ?page=/events                 AdCampaign | null
+ A6  GET    /stats                     -                             PlatformStats
+ A7  GET    /projects                  ?featured=true                Project[]
+ A8  GET    /builders                  ?featured=true                Builder[]
+ A9  GET    /team-openings             ?limit=3                      TeamOpening[]
+ A10 GET    /activity                  ?limit=10                     ActivityItem[]
+ B1  POST   /contact                   {name,email,message}          {success}
+ B2  POST   /service-inquiries         ServiceInquiry                {success}
+ B3  POST   /newsletter/subscribe      {email,source?}               {success}
+ B4  POST   /notifications/subscribe   {token}                       {success}
+ B5  POST   /events/:id/conversions    {source,medium,campaign?}     204

@@ -1,0 +1,297 @@
+================================================================================
+ 02  ARCHITECTURE AND FOLDER STRUCTURE  (every file in src/ explained)
+================================================================================
+
+Files marked [API] talk to the backend or define backend data.
+Files marked [UI]  are purely visual - backend team can ignore them.
+"@/..." in imports means "src/..." (alias set in vite.config.ts / tsconfig.json).
+
+
+--------------------------------------------------------------------------------
+1. HOW THE APP BOOTS (in order)
+--------------------------------------------------------------------------------
+
+  index.html
+    -> loads src/main.tsx
+         - clears the "chunk reload" flag (see routes.tsx)
+         - renders <App /> into <div id="root">
+    -> src/App.tsx wraps the whole site in providers (outer to inner):
+         ErrorBoundary (fullscreen)   catches any crash, shows "500" screen
+         QueryClientProvider          react-query cache for all API data
+         MotionConfig                 respects the user's "reduce motion" OS setting
+         BrowserRouter                URL routing
+         SmoothScrollProvider         Lenis smooth scroll
+         ToastProvider                small pop-up notifications
+         ComingSoonProvider           "early access" modal (collects emails)
+       then renders the always-visible layout:
+         skip-to-content link, ScrollProgress bar, CustomCursor,
+         GlobalBackground, Navbar, <the current page>, Footer, BackToTop,
+         OfflineBanner
+    -> the current page comes from src/app/routes.tsx (lazy loaded),
+       each page wrapped in its own ErrorBoundary so one broken page does not
+       take down the navbar/footer.
+
+
+--------------------------------------------------------------------------------
+2. DATA FLOW (how a page gets backend data)
+--------------------------------------------------------------------------------
+
+   Page component
+      |  calls a hook, e.g. useEvents('hackathon')
+      v
+   src/lib/api/queries.ts        react-query hooks: caching, loading, errors
+      |  calls api.getEvents('hackathon')
+      v
+   src/lib/api/index.ts          picks mockApi OR httpApi (based on env)
+      |                                   |
+      v                                   v
+   src/lib/api/mocks/*.ts         src/lib/api/client.ts  -> fetch(your API)
+   (fake data, fake delay)
+
+   Forms work the same way but call api.submitXxx(...) through the useSubmit
+   hook (src/hooks/useSubmit.ts) instead of react-query.
+
+   => The ONLY file that knows URLs is src/lib/api/index.ts.
+   => The ONLY file that calls fetch() is src/lib/api/client.ts.
+
+
+--------------------------------------------------------------------------------
+3. FOLDER MAP
+--------------------------------------------------------------------------------
+
+src/
+  main.tsx, App.tsx, vite-env.d.ts
+  app/            app shell: routes, error boundary, scroll provider
+  config/         environment variables
+  content/        site-wide static text (contact details, nav, footer)
+  lib/            non-visual logic
+    api/          *** everything backend-related ***
+  hooks/          reusable React hooks
+  components/     reusable visual building blocks
+    ui/           generic design system (buttons, fields, modal ...)
+    layout/       navbar, footer, background, page transition
+    motion/       animation helpers
+    product/      cards for events/projects/builders/teams + early-access modal
+    background/   3D star field
+  features/       one folder per page / feature
+  styles/         global CSS
+
+
+--------------------------------------------------------------------------------
+4. FILE BY FILE
+--------------------------------------------------------------------------------
+
+---- src/ (root) ---------------------------------------------------------------
+
+  main.tsx            Entry point. Mounts React. Clears the chunk-reload flag.
+  App.tsx             Providers + persistent layout + animated route switching.
+                      Scroll resets to top after the old page animates out.
+  vite-env.d.ts       TypeScript declarations for import.meta.env variables.
+
+---- src/app/ ------------------------------------------------------------------
+
+  routes.tsx          The list of URLs and which page component each shows:
+                        /                -> HomePage
+                        /events          -> EventsPage
+                        /events/:slug    -> EventDetailPage
+                        /services        -> ServicesPage
+                        /our-team        -> TeamPage
+                        /contact         -> ContactPage
+                        /dev/ui          -> UiPreviewPage (DEV ONLY, removed
+                                            from production builds)
+                        *                -> NotFoundPage (404)
+                      Pages are lazy-loaded. If loading a page chunk fails
+                      (e.g. after a new deploy) the app reloads once.
+  ErrorBoundary.tsx   Catches render errors and shows a "500 SOMETHING WENT
+                      WRONG" screen with Try again / Go home. Has a
+                      componentDidCatch hook point for Sentry-type logging
+                      (currently console.error only).
+  providers/SmoothScroll.tsx  [UI] One Lenis smooth-scroll instance for the app.
+  providers/lenis.ts          [UI] Helpers: scroll to top, lock scroll (modals).
+
+---- src/config/ ---------------------------------------------------------------
+
+  env.ts  [API]       Reads VITE_API_BASE_URL, VITE_USE_MOCKS, VITE_SITE_URL.
+                      Exports env.apiBaseUrl, env.useMocks, env.siteUrl,
+                      env.isDev. Strips trailing slashes from URLs.
+
+---- src/content/ --------------------------------------------------------------
+
+  site.ts             Static site copy that is NOT from the API:
+                        site name/tagline/description,
+                        nav links, contact email/phone/HQ address,
+                        social links (placeholders!), footer text & links.
+                      If you later want these editable from an admin panel,
+                      this is the file to replace with an API call.
+
+---- src/lib/api/  [API]  (see file 03 for full detail) ------------------------
+
+  types.ts            TypeScript types for every request and response body.
+                      SOURCE OF TRUTH for field names.
+  client.ts           request() - the fetch wrapper: base URL, JSON headers,
+                      15 s timeout, cancel support, turns non-2xx into ApiError.
+  index.ts            The Api interface (15 functions) and its two
+                      implementations: httpApi (real URLs) and mockApi.
+                      Exports `api` = whichever one env says.
+  queries.ts          react-query hooks used by pages: useEvents, useEvent,
+                      useServices, useTeam, useAdCampaign, usePlatformStats,
+                      useFeaturedProjects, useFeaturedBuilders,
+                      useTeamOpenings, useActivity. Also cache settings.
+  mocks/data.ts       Fake events (3), services (11), team (4), ad campaign.
+  mocks/product.ts    Fake hackathons (6), projects, builders, team openings,
+                      platform stats, activity feed. Good examples of the
+                      exact JSON your API should return.
+
+---- src/lib/ (other) ----------------------------------------------------------
+
+  event-status.ts     Works out "active / upcoming / completed" from
+                      start_date and end_date (so the backend does NOT need a
+                      status column). Also countdown labels like
+                      "12 DAYS LEFT", "STARTS IN 9 DAYS", "ENDED", and a
+                      "closing soon" flag (ends within 3 days).
+  format.ts           Date formatting in the visitor's locale, Indian number
+                      grouping (1,20,000), compact numbers (12K), rupee
+                      amounts (Rs 2L / 1.5Cr), "2H AGO" relative times.
+  image.ts            If an image URL is from images.unsplash.com, adds
+                      width/quality params for responsive sizes. Any other
+                      image URL is used unchanged. (If you use Cloudinary/S3,
+                      this could be extended to resize those too.)
+  pagination.ts       Page-number helper (1 ... 5 6 7 ... 20). Not used by
+                      any page yet; ready for when lists get paginated.
+  cn.ts               Joins CSS class names. [UI]
+
+---- src/hooks/ ----------------------------------------------------------------
+
+  useSubmit.ts  [API] Form submission state machine: idle -> submitting ->
+                      success | error. Blocks double-submits. On error shows
+                      the error's message (i.e. your API's "message" field).
+                      Can auto-reset after success.
+  useStorage.ts       useState that is saved in localStorage/sessionStorage.
+                      Used to remember "ad seen", "push prompt answered",
+                      "intro animation seen".
+  useScrollThreshold.ts  Becomes true once the user scrolled past N% of the
+                      page. Drives the ad popup (N comes from the API).
+  useDocumentMeta.ts  Sets <title>, description, canonical URL, Open Graph /
+                      Twitter tags and optional JSON-LD per page (SEO).
+  useMediaQuery.ts    [UI] Media-query subscriptions (reduced motion, mouse).
+  usePointerParallax.ts [UI] Cursor-follow parallax on the hero.
+  useTilt.ts          [UI] 3D tilt on cards.
+
+---- src/components/ui/  [UI] generic building blocks ----------------------------
+
+  Button.tsx          The one button component. Renders <button>, internal
+                      <Link>, or external <a target=_blank rel="noopener
+                      noreferrer"> (used for Devnovate + ad links, as the spec
+                      requires). Has loading spinner state.
+  Field.tsx           Form inputs: TextField, TextArea, SelectField, Checkbox,
+                      with labels, error text and accessibility wiring.
+  Modal.tsx           Accessible dialog: Escape/overlay/X to close, focus trap,
+                      scroll lock.
+  Toast.tsx / toast-context.ts  Small success/error notifications.
+  States.tsx          EmptyState, ErrorState (with Retry button), SuccessState.
+  Skeleton.tsx        Grey placeholder blocks while data loads.
+  Spinner.tsx         Loading spinner.
+  Tabs.tsx            Accessible tabs (used for Active/Upcoming/Completed).
+  Tag.tsx             Small labels / status pills.
+  Icon.tsx   [API]    Maps Service.icon names from the API to icons. Only the
+                      11 names in ServiceIconName are known; anything else
+                      shows a "?" help icon.
+  Card.tsx, Container.tsx, PageHeader.tsx, SectionHeading.tsx, InfoRow.tsx,
+  Pagination.tsx, BrandLogo.tsx, SocialIcon.tsx, GlitchCode.tsx
+                      Layout / typography helpers.
+
+---- src/components/layout/  [UI] -----------------------------------------------
+
+  Navbar.tsx          Top bar with links; LOGIN / JOIN HACKB4 buttons open the
+                      early-access modal (accounts are not built yet).
+                      Mobile menu. Hides on scroll down.
+  Footer.tsx  [API]   Links, contact info, and the NEWSLETTER form
+                      (POST /newsletter/subscribe with source "footer").
+  GlobalBackground.tsx  Planet video + star field behind every page.
+  PageTransition.tsx  Fade animation when changing pages.
+  ScrollUI.tsx        Reading progress bar + back-to-top button.
+  CustomCursor.tsx    Custom mouse cursor (desktop only).
+  OfflineBanner.tsx   "You're offline" notice when the network drops.
+
+---- src/components/motion/  [UI] ------------------------------------------------
+
+  Reveal.tsx, Stagger.tsx, CountUp.tsx, presets.ts   Scroll-in animations and
+                      animated number counting.
+
+---- src/components/background/  [UI] -------------------------------------------
+
+  StarField.tsx       three.js star field (lazy-loaded).
+
+---- src/components/product/ ----------------------------------------------------
+
+  HackathonCard.tsx [API]  Hackathon listing card on Home. Uses Event incl. the
+                      optional fields tags, duration_hours, team_size_min/max,
+                      participants_count, prize_pool_inr (hidden if missing).
+  ProjectCard.tsx [API]    Project card (Project type).
+  BuilderCard.tsx [API]    Builder profile card (Builder type).
+  TeamOpeningCard.tsx [API] Team-looking-for-members card (TeamOpening type).
+  StatBlock.tsx       One big number + label (stats band).
+  ProductCard.tsx     Shared card frame + hover effects.
+  ComingSoonProvider.tsx / coming-soon-context.ts [API]
+                      The "early access" modal. Opened by any button for a
+                      feature that doesn't exist yet (projects, builders,
+                      teams, account). Submits the email to
+                      POST /newsletter/subscribe with source
+                      "early_access:<feature>".
+
+---- src/features/  (one folder per page) ----------------------------------------
+
+  home/               HomePage.tsx builds the long landing page from sections:
+    sections/Hero.tsx          [API] headline + "N HACKATHONS LIVE NOW" (events)
+    sections/Marquee.tsx       scrolling track names (static)
+    sections/Explore.tsx       [API] 4 big words with live one-liners
+                               (events, team openings, stats)
+    sections/Stats.tsx         [API] platform totals (GET /stats)
+    sections/Hackathons.tsx    [API] Active/Upcoming/Completed tabs (events)
+    sections/HowItWorks.tsx    4 steps (static text)
+    sections/Projects.tsx      [API] featured projects + domain filter
+    sections/People.tsx        [API] featured builders + team openings
+    sections/Tech.tsx          tools list (static)
+    sections/Community.tsx     [API] statement + live activity ticker
+    sections/ForOrganizations.tsx [API] 3 columns -> service inquiry modal
+    sections/FinalCta.tsx      "Join HACKB4" -> early access modal
+    content.ts                 all Home page text (static)
+    components/*               loader, section rail, veil, visuals [UI]
+    useHomeAnimations.ts       GSAP scroll animations [UI]
+    useScrollToSection.ts      smooth jump to a section [UI]
+    home.css                   Home-only CSS [UI]
+
+  events/
+    EventsPage.tsx      [API] list + category filter + search + ad popup +
+                              push opt-in
+    EventDetailPage.tsx [API] one event by slug; 404 page if not found
+    useEventMeta.ts           SEO tags + schema.org Event JSON-LD per event
+    categories.ts             filter tabs: all, hackathon, placement, workshop
+    components/EventCard.tsx       card in the list
+    components/EventFilters.tsx    category buttons
+    components/EventSearch.tsx     search box (client-side, see file 06)
+    components/EventHero.tsx       big banner on the detail page
+    components/EventInfoPanel.tsx  [API] date/location/format + REGISTER NOW
+                                   (UTM link + conversion tracking)
+
+  services/
+    ServicesPage.tsx    [API] 11 service cards (GET /services)
+    components/ServiceCard.tsx     one card; click opens inquiry modal
+    components/InquiryModal.tsx    [API] lead form (POST /service-inquiries)
+
+  team/TeamPage.tsx     [API] team members (GET /team)
+
+  contact/
+    ContactPage.tsx     contact details (from content/site.ts) + form
+    components/ContactForm.tsx     [API] POST /contact
+
+  engagement/
+    ScrollAdPopup.tsx   [API] ad modal after scrolling N% (GET /ad-campaigns/active)
+    PushOptIn.tsx       [API] "Stay updated" prompt (POST /notifications/subscribe)
+
+  not-found/NotFoundPage.tsx   404 page.
+  dev/UiPreviewPage.tsx        Dev-only gallery of all UI components (/dev/ui).
+
+---- src/styles/ ------------------------------------------------------------------
+
+  globals.css         Tailwind import, colour/font tokens, base styles. [UI]
