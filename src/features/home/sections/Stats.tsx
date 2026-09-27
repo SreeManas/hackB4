@@ -7,7 +7,7 @@ import { HomeSection } from '../components/HomeSection';
 
 /** Editorial statistics band — figures in a report, not dashboard widgets. */
 export function Stats() {
-  const { data } = usePlatformStats();
+  const { data, isError } = usePlatformStats();
 
   return (
     <HomeSection id={sectionIds.platform} className="py-[clamp(4rem,10vh,7rem)]">
@@ -16,7 +16,8 @@ export function Stats() {
           {stats.lead}
         </p>
       </FadeIn>
-      {data ? (
+      {isError ? null : data ? (
+        // (No figures when the stats endpoint is unavailable — never a skeleton that spins forever.)
         <div className="grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-3 lg:grid-cols-5">
           {stats.items.map((s) => (
             <StatBlock key={s.key} value={data[s.key]} label={s.label} suffix={s.suffix} />

@@ -132,7 +132,7 @@ project pages and the team finder are "coming soon": the buttons open an
 
   To use your API instead, create a file named .env.local in the project root:
 
-      VITE_API_BASE_URL=http://localhost:4000/v1
+      VITE_API_BASE_URL=http://localhost:4000/api
       VITE_USE_MOCKS=false
 
   then restart `npm run dev`.

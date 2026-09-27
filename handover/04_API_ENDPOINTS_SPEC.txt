@@ -2,7 +2,7 @@
  04  API ENDPOINTS SPECIFICATION  (build exactly this)
 ================================================================================
 
-Base URL: whatever you choose, e.g. https://api.hackb4.com/v1
+Base URL: whatever you choose, e.g. https://api.hackb4.com/api
 All paths below are relative to the base URL.
 
 

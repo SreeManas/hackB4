@@ -50,6 +50,10 @@ const EVENT_CATEGORIES: readonly EventCategory[] = ['hackathon', 'placement', 'w
 const isEventCategory = (value: string | undefined): value is EventCategory =>
   value !== undefined && (EVENT_CATEGORIES as readonly string[]).includes(value);
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CONVERSION_DEDUPE_MS = 3000;
+const recentConversions = new Map<string, number>();
+
 const httpApi: Api = {
   getPlatformStats: (opts) => request<PlatformStats>('/stats', opts),
   getFeaturedProjects: (opts) => request<Project[]>('/projects?featured=true', opts),
@@ -78,8 +82,14 @@ const httpApi: Api = {
   subscribeNotification: (token) => request('/notifications/subscribe', { method: 'POST', body: { token } }),
   subscribeNewsletter: (email, source) => request('/newsletter/subscribe', { method: 'POST', body: { email, source } }),
   trackConversion: async (eventId, payload) => {
+    // Only real events are tracked: the API-provided UUID, never a slug or placeholder id.
+    if (!UUID_PATTERN.test(eventId)) return;
+    // An accidental double-click must not count twice.
+    const now = Date.now();
+    if (now - (recentConversions.get(eventId) ?? 0) < CONVERSION_DEDUPE_MS) return;
+    recentConversions.set(eventId, now);
     // Fire-and-forget: analytics must never block navigation.
-    await request(`/events/${encodeURIComponent(eventId)}/conversions`, {
+    await request(`/events/${eventId}/conversions`, {
       method: 'POST',
       body: payload,
       keepalive: true,
@@ -182,6 +192,12 @@ const liveEndpoints: Partial<Api> = env.apiBaseUrl
       getFeaturedBuilders: httpApi.getFeaturedBuilders,
       getTeamOpenings: httpApi.getTeamOpenings,
       getActivity: httpApi.getActivity,
+      getActiveAdCampaign: httpApi.getActiveAdCampaign,
+      submitContactForm: httpApi.submitContactForm,
+      submitServiceInquiry: httpApi.submitServiceInquiry,
+      subscribeNewsletter: httpApi.subscribeNewsletter,
+      subscribeNotification: httpApi.subscribeNotification,
+      trackConversion: httpApi.trackConversion,
     }
   : {};
 

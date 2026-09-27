@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules'] },
+  // `server/` is a separate Node project: this config (browser globals, React rules) is for the frontend.
+  { ignores: ['dist', 'node_modules', 'server'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

@@ -17,7 +17,7 @@ Folder: src/lib/api/
 Every real HTTP call goes through this one function. What it does, step by step:
 
   1. Builds the URL:  env.apiBaseUrl + path
-        e.g. "https://api.hackb4.com/v1" + "/events?category=hackathon"
+        e.g. "https://api.hackb4.com/api" + "/events?category=hackathon"
 
   2. Sets headers:
         Accept: application/json                 (always)

@@ -9,7 +9,10 @@ const USER_AGENT_MAX = 300;
 /** User-Agent as sent by the browser, control characters removed and length capped. */
 function userAgentOf(req: Request): string | null {
   const raw = req.get('user-agent');
-  const cleaned = raw?.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, USER_AGENT_MAX);
+  const cleaned = raw
+    ?.replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim()
+    .slice(0, USER_AGENT_MAX);
   return cleaned || null;
 }
 

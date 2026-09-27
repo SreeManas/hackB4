@@ -3,7 +3,7 @@
 The frontend currently runs on mock data. To connect the real backend, set in `.env.local`:
 
 ```
-VITE_API_BASE_URL=https://api.hackb4.com/v1
+VITE_API_BASE_URL=https://api.hackb4.com/api
 VITE_USE_MOCKS=false
 ```
 

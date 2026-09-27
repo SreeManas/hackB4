@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, X } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -11,6 +11,8 @@ export function PushOptIn() {
   const [interacted, setInteracted] = useStorage('push_optin_interacted', false);
   const [visible, setVisible] = useState(!interacted);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  // Blocks a second request while one is in flight, even before the button re-renders as disabled.
+  const busy = useRef(false);
 
   const dismiss = () => {
     setInteracted(true);
@@ -18,6 +20,8 @@ export function PushOptIn() {
   };
 
   const subscribe = async () => {
+    if (busy.current) return;
+    busy.current = true;
     setStatus('loading');
     try {
       // TODO(backend): replace with the real FCM / OneSignal token once push is configured.
@@ -26,6 +30,8 @@ export function PushOptIn() {
       dismiss();
     } catch {
       setStatus('error');
+    } finally {
+      busy.current = false;
     }
   };
 

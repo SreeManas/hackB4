@@ -1,9 +1,5 @@
 import type { Request, Response } from 'express';
-import {
-  DEFAULT_NEWSLETTER_SOURCE,
-  isNewsletterSource,
-  subscribeToNewsletter,
-} from '../services/newsletter.service';
+import { DEFAULT_NEWSLETTER_SOURCE, isNewsletterSource, subscribeToNewsletter } from '../services/newsletter.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { HttpError } from '../utils/HttpError';
 import { optionalString, requireBody, requiredEmail } from '../utils/validation';

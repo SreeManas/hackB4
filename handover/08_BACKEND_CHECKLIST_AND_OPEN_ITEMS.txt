@@ -10,7 +10,7 @@
   Infrastructure
   [ ] API service created (separate from this repo - the frontend is static)
   [ ] PostgreSQL database + migrations (file 05, Part C)
-  [ ] HTTPS base URL decided, e.g. https://api.hackb4.com/v1
+  [ ] HTTPS base URL decided, e.g. https://api.hackb4.com/api
   [ ] CORS: hackb4.com, www.hackb4.com, Vercel preview domains,
       http://localhost:5173 ; methods GET, POST, OPTIONS ; header Content-Type
   [ ] Error format { "message": "..." } on every non-2xx

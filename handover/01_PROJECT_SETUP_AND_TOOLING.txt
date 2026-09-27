@@ -30,7 +30,7 @@
    - The spec path "/api/notifications/subscribe" becomes
      "{VITE_API_BASE_URL}/notifications/subscribe". If you want "/api" in the
      URL, put it in the base URL, e.g. https://hackb4.com/api or
-     https://api.hackb4.com/v1.
+     https://api.hackb4.com/api.
 
 
 --------------------------------------------------------------------------------
@@ -82,7 +82,7 @@
 
   VITE_API_BASE_URL
       Base URL of your REST API, without trailing slash.
-      Example: https://api.hackb4.com/v1
+      Example: https://api.hackb4.com/api
       Every endpoint path is appended to it, e.g. base + "/events".
       Empty -> the frontend uses mock data.
 
@@ -105,10 +105,10 @@
 5. CONNECTING THE FRONTEND TO YOUR API (local)
 --------------------------------------------------------------------------------
 
-  1. Run your API, e.g. on http://localhost:4000/v1
+  1. Run your API, e.g. on http://localhost:4000/api
   2. In the frontend project root create .env.local:
 
-         VITE_API_BASE_URL=http://localhost:4000/v1
+         VITE_API_BASE_URL=http://localhost:4000/api
          VITE_USE_MOCKS=false
 
   3. Allow CORS on your API for origin http://localhost:5173
