@@ -48,6 +48,35 @@ Measured against Supabase (Sydney) from a link with a ~420 ms round trip to the 
 - Round trips dominate: host the API in the same region as the database (single-digit ms instead of hundreds).
 - The P1001 retry policy (`src/utils/dbRetry.ts`) is unchanged: reads retry, writes probe once then run once.
 
+## Push notifications
+
+`POST /notifications/subscribe` (`src/controllers/notifications.controller.ts`,
+`src/services/notifications.service.ts`) is fully implemented and functional as a **token store**:
+validated (required, max 2048 chars, control characters rejected - `src/utils/validation.ts`),
+idempotent (`device_token` is unique; a repeat token upserts the same row and re-activates it
+instead of creating a duplicate), and goes through the same retry/error handling as every other
+write.
+
+What is **not** implemented, and can't be without a product decision: actually delivering a push.
+The frontend's "Stay Updated" prompt (`src/features/engagement/PushOptIn.tsx`) does not call the
+browser's `Notification`/`PushManager` APIs and has no service worker - it sends a placeholder
+per-browser token (`fcm-token-<uuid>`, persisted in `localStorage` so retries reuse it) purely so
+the storage/idempotency path can be exercised end-to-end. `handover/08_BACKEND_CHECKLIST_AND_OPEN_ITEMS.txt`
+(open question 5) leaves the provider undecided - FCM or OneSignal, and who owns the account - and
+that decision has to be made before real tokens exist.
+
+If the team instead goes with standards-based Web Push (no FCM/OneSignal account needed - every
+major browser implements it natively via a self-generated VAPID keypair), the required config is:
+
+| Variable            | Where             | Notes                                                            |
+| ------------------- | ----------------- | ---------------------------------------------------------------- |
+| `VAPID_PUBLIC_KEY`  | server + frontend | Frontend var: `VITE_VAPID_PUBLIC_KEY` (public, safe client-side) |
+| `VAPID_PRIVATE_KEY` | server only       | Never sent to the frontend                                       |
+| `VAPID_SUBJECT`     | server only       | Contact URI the spec requires, e.g. `mailto:ops@hackb4.com`      |
+
+None of these are set anywhere in this repo (`.env.example` only lists the names). A hosted
+provider (FCM/OneSignal) would need different, provider-specific variables instead of these.
+
 ## Layout
 
 ```

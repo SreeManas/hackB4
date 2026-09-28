@@ -9,6 +9,9 @@ const btn = 'rounded-md px-4 py-2 text-xs font-semibold transition';
 /** Bottom-left prompt to subscribe to event notifications. Remembers the visitor's choice. */
 export function PushOptIn() {
   const [interacted, setInteracted] = useStorage('push_optin_interacted', false);
+  // Same token every time this browser subscribes (not a fresh one per click), so a retry or a
+  // second "Enable" is idempotent end-to-end, not just at the API layer.
+  const [deviceToken, setDeviceToken] = useStorage<string | null>('push_device_token', null);
   const [visible, setVisible] = useState(!interacted);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   // Blocks a second request while one is in flight, even before the button re-renders as disabled.
@@ -24,9 +27,12 @@ export function PushOptIn() {
     busy.current = true;
     setStatus('loading');
     try {
-      // TODO(backend): replace with the real FCM / OneSignal token once push is configured.
-      const token = `fcm-token-${crypto.randomUUID()}`;
+      // TODO(backend): no push provider is configured yet (handover/08, open question 5: FCM or
+      // OneSignal?). Once one is chosen, request real browser permission and a real token here
+      // instead - see server/README.md for exactly what's missing and the env vars it will need.
+      const token = deviceToken ?? `fcm-token-${crypto.randomUUID()}`;
       await api.subscribeNotification(token);
+      setDeviceToken(token);
       dismiss();
     } catch {
       setStatus('error');

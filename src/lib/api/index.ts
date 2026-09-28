@@ -186,6 +186,7 @@ const liveEndpoints: Partial<Api> = env.apiBaseUrl
   ? {
       getServices: httpApi.getServices,
       getTeamMembers: httpApi.getTeamMembers,
+      getPlatformStats: httpApi.getPlatformStats,
       getEvents: httpApi.getEvents,
       getEventBySlug: httpApi.getEventBySlug,
       getFeaturedProjects: httpApi.getFeaturedProjects,

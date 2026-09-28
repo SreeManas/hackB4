@@ -1,12 +1,13 @@
 import type { Request, Response } from 'express';
 import { createServiceInquiry } from '../services/serviceInquiries.service';
+import { notifyServiceInquirySubmission } from '../services/notify/submissionNotifications';
 import { asyncHandler } from '../utils/asyncHandler';
 import { optionalString, requireBody, requiredEmail, requiredString } from '../utils/validation';
 
 export const submitServiceInquiry = asyncHandler(async (req: Request, res: Response) => {
   const body = requireBody(req.body);
 
-  await createServiceInquiry({
+  const submission = {
     // Required. Maxima follow the API contract / column sizes.
     serviceType: requiredString(body, 'service_type', { label: 'Service type', max: 100 }),
     clientName: requiredString(body, 'client_name', { label: 'Name', max: 120 }),
@@ -17,7 +18,11 @@ export const submitServiceInquiry = asyncHandler(async (req: Request, res: Respo
     phone: optionalString(body, 'phone', { label: 'Phone', max: 20 }),
     budgetRange: optionalString(body, 'budget_range', { label: 'Budget range', max: 50 }),
     message: optionalString(body, 'message', { label: 'Message', max: 2000 }),
-  });
+  };
+
+  await createServiceInquiry(submission);
+  // Best-effort internal alert; never throws, so it cannot affect the response or the write above.
+  await notifyServiceInquirySubmission(submission);
 
   res.status(201).json({ success: true });
 });

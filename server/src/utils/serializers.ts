@@ -188,3 +188,21 @@ export const toActivityDto = (row: Activity): ActivityDto => ({
   target: row.target,
   created_at: row.createdAt.toISOString(),
 });
+
+/**
+ * Platform-wide totals for the home page stats band.
+ *
+ * `builders`, `hackathons` and `projects` are real COUNT queries. `countries`
+ * and `submissions` have no legitimate source yet (no country field anywhere
+ * in the schema; no submissions table) and are 0 rather than invented or
+ * pulled from a curated row count - see stats.service.ts.
+ */
+export interface StatsDto {
+  builders: number;
+  hackathons: number;
+  projects: number;
+  countries: number;
+  submissions: number;
+}
+
+export const toStatsDto = (counts: StatsDto): StatsDto => ({ ...counts });

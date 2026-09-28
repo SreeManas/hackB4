@@ -42,4 +42,15 @@ export const env = {
   },
   databaseUrl: process.env.DATABASE_URL ?? '',
   directUrl: process.env.DIRECT_URL ?? '',
+  /** Internal email alerts for contact/inquiry submissions. See config/notifications.ts. */
+  smtp: {
+    host: process.env.SMTP_HOST?.trim() ?? '',
+    port: positiveInt('SMTP_PORT', 587),
+    secure: process.env.SMTP_SECURE?.trim().toLowerCase() === 'true',
+    user: process.env.SMTP_USER?.trim() ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+  },
+  notifyFromEmail: process.env.NOTIFY_FROM_EMAIL?.trim() ?? '',
+  notifyContactToEmail: process.env.NOTIFY_CONTACT_TO_EMAIL?.trim() ?? '',
+  notifyInquiryToEmail: process.env.NOTIFY_INQUIRY_TO_EMAIL?.trim() ?? '',
 } as const;

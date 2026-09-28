@@ -10,6 +10,7 @@ import notificationsRoutes from './notifications.routes';
 import projectsRoutes from './projects.routes';
 import serviceInquiriesRoutes from './serviceInquiries.routes';
 import servicesRoutes from './services.routes';
+import statsRoutes from './stats.routes';
 import teamRoutes from './team.routes';
 import teamOpeningsRoutes from './teamOpenings.routes';
 
@@ -26,6 +27,7 @@ router.use('/notifications', notificationsRoutes);
 router.use('/projects', projectsRoutes);
 router.use('/service-inquiries', serviceInquiriesRoutes);
 router.use('/services', servicesRoutes);
+router.use('/stats', statsRoutes);
 router.use('/team', teamRoutes);
 router.use('/team-openings', teamOpeningsRoutes);
 
