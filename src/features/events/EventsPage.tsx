@@ -52,7 +52,7 @@ export default function EventsPage() {
           title="EVENTS"
           subtitle="Discover global hackathons, placement drives, and open source sprints designed to push the boundaries of technology."
         />
-        <FadeIn delay={0.4}>
+        <FadeIn delay={0.15} duration={0.5}>
           <EventFilters active={category} onChange={setCategory} />
           <EventSearch value={query} onChange={setQuery} resultCount={events ? visible.length : undefined} />
         </FadeIn>

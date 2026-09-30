@@ -68,7 +68,8 @@ function StarLayer({
   const uniforms = useMemo(() => ({ uTime: { value: 0 }, uPixelRatio: { value: dpr } }), [dpr]);
 
   useFrame((_, delta) => {
-    if (!ref.current || !material.current) return;
+    // Skip work while the tab is hidden — no point animating a scene nobody can see.
+    if (document.hidden || !ref.current || !material.current) return;
     material.current.uniforms.uTime.value += delta;
     // Base drift + a boost while the page is scrolling ("warp").
     const boost = 1 + Math.min(Math.abs(input.scrollVelocity) * 0.02, 12);
@@ -99,6 +100,7 @@ function StarLayer({
 /** Camera eases toward the cursor (parallax) and pushes forward while scrolling fast. */
 function CameraRig() {
   useFrame(({ camera }) => {
+    if (document.hidden) return;
     input.scrollVelocity *= 0.9; // decay between scroll events
     camera.position.x += (input.px * 14 - camera.position.x) * 0.03;
     camera.position.y += (-input.py * 14 - camera.position.y) * 0.03;

@@ -22,13 +22,12 @@ export function EventCard({ event }: { event: Event }) {
 
   return (
     <motion.article
-      layout
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
+      exit={{ opacity: 0 }}
       viewport={{ once: true, margin: '-50px' }}
       whileHover={{ y: -6 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       onMouseMove={trackSpotlight}
       className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-sm"
     >

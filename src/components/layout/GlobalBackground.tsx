@@ -86,7 +86,10 @@ export function GlobalBackground() {
         }}
       />
 
-      {animated && (
+      {/* The WebGL layer is Home-only: on inner pages it's already almost invisible behind the
+          darker veil above, so skipping it avoids loading/running three.js (and its continuous
+          render loop) on every route for a difference visitors can't actually see. */}
+      {animated && isHome && (
         <Suspense fallback={null}>
           <StarField />
         </Suspense>

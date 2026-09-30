@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
 import NotFoundPage from '@/features/not-found/NotFoundPage';
 import { useEvent } from '@/lib/api/queries';
+import { EventBackButton } from './components/EventBackButton';
 import { EventHero } from './components/EventHero';
 import { EventInfoPanel } from './components/EventInfoPanel';
 import { useEventMeta } from './useEventMeta';
@@ -19,6 +20,7 @@ export default function EventDetailPage() {
 
   return (
     <PageTransition offsetNav={false}>
+      <EventBackButton />
       <EventHero event={event} />
 
       <Container size="lg" className="py-16">
