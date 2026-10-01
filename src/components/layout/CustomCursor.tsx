@@ -72,7 +72,9 @@ export function CustomCursor() {
     <div
       ref={rootRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[99999] transition-opacity duration-200"
+      // Above every other fixed layer (Modal is z-[100000], Toast/skip-link are z-[100001]) so the
+      // cursor is never painted over - it must stay visible even inside an open modal.
+      className="pointer-events-none fixed inset-0 z-[100002] transition-opacity duration-200"
     >
       <div ref={dotRef} className="cursor-dot" />
       <div ref={ringRef} className="cursor-outline" />
