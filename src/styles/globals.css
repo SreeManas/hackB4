@@ -110,6 +110,7 @@ html.has-custom-cursor :is(input, textarea, select, [contenteditable]) {
   margin: -3px 0 0 -3px;
   background: #fff;
   z-index: 10000;
+  transition: opacity 0.15s ease;
 }
 .cursor-outline {
   width: 40px;
@@ -128,7 +129,21 @@ html.has-custom-cursor :is(input, textarea, select, [contenteditable]) {
     height 0.3s var(--ease-cinematic),
     margin 0.3s var(--ease-cinematic),
     background-color 0.3s ease,
-    border-color 0.3s ease;
+    border-color 0.3s ease,
+    opacity 0.15s ease;
+}
+/* Over a control (button, link, form field, …): shrink the ring and dim it instead of switching to
+   the native cursor, so the custom cursor stays consistent everywhere but never covers a small
+   target like a modal's close button. Images keep the full-size "VIEW" ring (.cursor-hover below). */
+.cursor-interactive .cursor-outline {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  background-color: transparent;
+  border-color: rgb(255 255 255 / 0.7);
+}
+.cursor-interactive .cursor-dot {
+  opacity: 0.6;
 }
 .cursor-outline::after {
   content: attr(data-label);

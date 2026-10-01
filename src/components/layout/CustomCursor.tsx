@@ -38,8 +38,12 @@ export function CustomCursor() {
     };
     const onOver = (e: MouseEvent) => {
       const target = e.target as Element;
-      const isImage = !!target.closest('img, .cursor-view');
-      root.classList.toggle('cursor-hover', isImage || !!target.closest(INTERACTIVE));
+      // Controls (buttons, links, form fields, …) keep the custom cursor — just shrunk down so it
+      // never covers a small target like a modal's close button. Images keep the "VIEW" ring.
+      const interactive = !!target.closest(INTERACTIVE);
+      const isImage = !interactive && !!target.closest('img, .cursor-view');
+      root.classList.toggle('cursor-interactive', interactive);
+      root.classList.toggle('cursor-hover', isImage);
       ring.dataset.label = isImage ? 'VIEW' : '';
     };
     const onLeaveWindow = () => {
