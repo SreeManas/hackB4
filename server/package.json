@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p prisma/tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "push:send": "tsx src/scripts/sendPush.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -24,13 +25,15 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
-    "nodemailer": "^10.0.12"
+    "nodemailer": "^10.0.12",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^20.19.43",
     "@types/nodemailer": "^8.0.2",
+    "@types/web-push": "^3.6.4",
     "prisma": "^6.19.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"

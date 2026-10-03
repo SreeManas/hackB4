@@ -181,12 +181,17 @@ model NewsletterSubscriber {
   @@map("newsletter_subscribers")
 }
 
-/// Browser push tokens. Write-only.
-/// user_id has no relation: there is no users table (authentication is deferred).
+/// Browser Web Push subscriptions (standards-based Web Push + VAPID). Written by the public API,
+/// read only by the broadcast sender (src/services/notify/webPushSender.ts).
+/// `endpoint` is the push service URL and uniquely identifies a browser subscription; p256dh/auth are
+/// the keys the payload is encrypted with. Both are NULL only for legacy placeholder rows, which the
+/// sender skips. user_id has no relation: there is no users table (authentication is deferred).
 model PushSubscription {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String?  @map("user_id") @db.Uuid
-  deviceToken  String   @unique @map("device_token")
+  endpoint     String   @unique
+  p256dh       String?
+  auth         String?
   browser      String?  @db.VarChar(50)
   os           String?  @db.VarChar(50)
   isActive     Boolean  @default(true) @map("is_active")

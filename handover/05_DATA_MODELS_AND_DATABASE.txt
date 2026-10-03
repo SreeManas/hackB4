@@ -137,7 +137,7 @@ Request bodies (POST)
   ServiceInquiry     { client_name, organization_name, email, service_type }  required
                      { organization_type, phone, budget_range, message }       optional
   Newsletter         { email, source? }
-  Push               { token }
+  Push               { endpoint, keys: { p256dh, auth } }
   ConversionPayload  { source, medium, campaign? }
   MutationResult     response of POSTs: { success: boolean, message?: string }
 
@@ -301,10 +301,12 @@ CREATE TABLE newsletter_subscribers (
 -- Upsert: INSERT ... ON CONFLICT (email) DO UPDATE
 --         SET sources = array(SELECT DISTINCT unnest(newsletter_subscribers.sources || EXCLUDED.sources))
 
-CREATE TABLE push_subscriptions (           -- as spec
+CREATE TABLE push_subscriptions (           -- spec + Web Push keys
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID,                      -- REFERENCES users(id) once users exist
-  device_token   TEXT UNIQUE NOT NULL,
+  endpoint       TEXT UNIQUE NOT NULL,      -- Web Push subscription endpoint (was device_token)
+  p256dh         TEXT,                      -- subscription public key (base64url)
+  auth           TEXT,                      -- subscription auth secret (base64url)
   browser        VARCHAR(50),
   os             VARCHAR(50),
   is_active      BOOLEAN NOT NULL DEFAULT TRUE,

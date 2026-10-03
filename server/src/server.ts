@@ -2,10 +2,12 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { logNotificationConfigStatus } from './config/notifications';
 import { prisma } from './config/prisma';
+import { logWebPushConfigStatus } from './config/webPush';
 
 const app = createApp();
 
 logNotificationConfigStatus();
+logWebPushConfigStatus();
 
 const server = app.listen(env.port, () => {
   console.log(`HACKB4 API listening on http://localhost:${env.port} (${env.nodeEnv})`);

@@ -50,32 +50,41 @@ Measured against Supabase (Sydney) from a link with a ~420 ms round trip to the 
 
 ## Push notifications
 
-`POST /notifications/subscribe` (`src/controllers/notifications.controller.ts`,
-`src/services/notifications.service.ts`) is fully implemented and functional as a **token store**:
-validated (required, max 2048 chars, control characters rejected - `src/utils/validation.ts`),
-idempotent (`device_token` is unique; a repeat token upserts the same row and re-activates it
-instead of creating a duplicate), and goes through the same retry/error handling as every other
-write.
+Real browser push using standards-based **Web Push + VAPID** - no Firebase/OneSignal, no third-party
+account. Supabase is used only for storage.
 
-What is **not** implemented, and can't be without a product decision: actually delivering a push.
-The frontend's "Stay Updated" prompt (`src/features/engagement/PushOptIn.tsx`) does not call the
-browser's `Notification`/`PushManager` APIs and has no service worker - it sends a placeholder
-per-browser token (`fcm-token-<uuid>`, persisted in `localStorage` so retries reuse it) purely so
-the storage/idempotency path can be exercised end-to-end. `handover/08_BACKEND_CHECKLIST_AND_OPEN_ITEMS.txt`
-(open question 5) leaves the provider undecided - FCM or OneSignal, and who owns the account - and
-that decision has to be made before real tokens exist.
+**Subscribing** - `POST /notifications/subscribe` takes the browser's `PushSubscription`:
+`{ "endpoint": "https://...", "keys": { "p256dh": "...", "auth": "..." } }`
+(`src/utils/validation.ts` -> `requiredPushSubscription`). Because the server later POSTs to the
+endpoint, it must be `https` on a known push service (FCM, Mozilla autopush, Apple, Windows) with
+valid base64url keys; anything else is a 400. The row is upserted on `endpoint` (unique), so a repeat
+subscribe updates the keys, re-activates it and creates no duplicate. `browser`/`os` are derived from the
+User-Agent. Works with or without VAPID configured.
 
-If the team instead goes with standards-based Web Push (no FCM/OneSignal account needed - every
-major browser implements it natively via a self-generated VAPID keypair), the required config is:
+**Sending** - there is deliberately no public send endpoint. Broadcast to every active subscription from
+the command line (`src/scripts/sendPush.ts`, `src/services/notify/webPushSender.ts`):
+
+```bash
+npm run push:send -- --title "New hackathon" --body "Registration is open" --url /events
+npm run push:send -- --title "x" --body "y" --dry-run   # count recipients, send nothing
+```
+
+`--url` must be a site path starting with `/` (default `/events`). A 404/410 from the push service means the
+subscription is gone, so it is marked `is_active = false`; other failures are only counted. Output is
+counts only - never endpoints or keys.
 
 | Variable            | Where             | Notes                                                            |
 | ------------------- | ----------------- | ---------------------------------------------------------------- |
 | `VAPID_PUBLIC_KEY`  | server + frontend | Frontend var: `VITE_VAPID_PUBLIC_KEY` (public, safe client-side) |
 | `VAPID_PRIVATE_KEY` | server only       | Never sent to the frontend                                       |
-| `VAPID_SUBJECT`     | server only       | Contact URI the spec requires, e.g. `mailto:ops@hackb4.com`      |
+| `VAPID_SUBJECT`     | server only       | `mailto:` or `https:` contact URI, e.g. `mailto:ops@hackb4.com`  |
 
-None of these are set anywhere in this repo (`.env.example` only lists the names). A hosted
-provider (FCM/OneSignal) would need different, provider-specific variables instead of these.
+Generate the keypair once with `npx web-push generate-vapid-keys`. If any variable is missing or
+malformed the API still starts (with a warning) and keeps storing subscriptions; `push:send` refuses and
+names the problem. Rotating the keypair invalidates every existing subscription.
+
+Limits: broadcast only (no interest targeting); iOS only delivers to a web app added to the Home Screen
+(iOS/iPadOS 16.4+).
 
 ## Layout
 

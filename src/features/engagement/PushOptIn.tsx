@@ -1,19 +1,43 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, X } from 'lucide-react';
+import { env } from '@/config/env';
 import { api } from '@/lib/api';
 import { useStorage } from '@/hooks/useStorage';
+import { PushError, createPushSubscription, type PushFailure } from './webPush';
 
 const btn = 'rounded-md px-4 py-2 text-xs font-semibold transition';
+
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+const MESSAGES: Record<'idle' | 'error' | PushFailure, string> = {
+  idle: 'Get notified about upcoming hackathons & placement drives.',
+  error: 'Could not subscribe right now. Please try again.',
+  denied: 'Notifications are blocked for this site. Allow them in your browser settings, then try again.',
+  dismissed: 'Notification permission was not granted. Tap Enable to try again.',
+  unavailable: 'Notifications are not available right now. Please try again later.',
+  unsupported: IS_IOS
+    ? 'On iPhone and iPad, add HACKB4 to your Home Screen first, then enable notifications from the app.'
+    : 'This browser does not support push notifications.',
+};
+
+/**
+ * With no backend and no VAPID key (plain mock-data development) there is nothing real to subscribe to,
+ * so a clearly fake subscription goes to the mock API. Whenever a backend is configured, the real
+ * browser Push API is always used - never a fake.
+ */
+const SIMULATE_PUSH = !env.apiBaseUrl && !env.vapidPublicKey;
+
+const simulatedSubscription = () => ({
+  endpoint: `https://fcm.googleapis.com/mock/${crypto.randomUUID()}`,
+  keys: { p256dh: 'mock', auth: 'mock' },
+});
 
 /** Bottom-left prompt to subscribe to event notifications. Remembers the visitor's choice. */
 export function PushOptIn() {
   const [interacted, setInteracted] = useStorage('push_optin_interacted', false);
-  // Same token every time this browser subscribes (not a fresh one per click), so a retry or a
-  // second "Enable" is idempotent end-to-end, not just at the API layer.
-  const [deviceToken, setDeviceToken] = useStorage<string | null>('push_device_token', null);
   const [visible, setVisible] = useState(!interacted);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | PushFailure>('idle');
   // Blocks a second request while one is in flight, even before the button re-renders as disabled.
   const busy = useRef(false);
 
@@ -27,15 +51,13 @@ export function PushOptIn() {
     busy.current = true;
     setStatus('loading');
     try {
-      // TODO(backend): no push provider is configured yet (handover/08, open question 5: FCM or
-      // OneSignal?). Once one is chosen, request real browser permission and a real token here
-      // instead - see server/README.md for exactly what's missing and the env vars it will need.
-      const token = deviceToken ?? `fcm-token-${crypto.randomUUID()}`;
-      await api.subscribeNotification(token);
-      setDeviceToken(token);
+      // The browser hands back the same subscription on every call, so a retry or a second "Enable" is
+      // idempotent end-to-end (the API upserts on the endpoint).
+      const subscription = SIMULATE_PUSH ? simulatedSubscription() : await createPushSubscription(env.vapidPublicKey);
+      await api.subscribeNotification(subscription);
       dismiss();
-    } catch {
-      setStatus('error');
+    } catch (err) {
+      setStatus(err instanceof PushError ? err.reason : 'error');
     } finally {
       busy.current = false;
     }
@@ -57,11 +79,7 @@ export function PushOptIn() {
           </span>
           <div className="flex-1">
             <h2 className="mb-2 text-sm font-semibold">Stay Updated</h2>
-            <p className="mb-4 text-xs leading-snug text-muted">
-              {status === 'error'
-                ? 'Could not subscribe right now. Please try again.'
-                : 'Get notified about upcoming hackathons & placement drives.'}
-            </p>
+            <p className="mb-4 text-xs leading-snug text-muted">{MESSAGES[status === 'loading' ? 'idle' : status]}</p>
             <div className="flex gap-2">
               <button
                 type="button"

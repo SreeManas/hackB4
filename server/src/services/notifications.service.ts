@@ -1,16 +1,22 @@
 import { prisma } from '../config/prisma';
+import type { DeviceInfo } from '../utils/userAgent';
+import type { PushSubscriptionInput } from '../utils/validation';
 
 /**
- * Registers a push token. Idempotent: `device_token` is unique, so a repeat token updates the
- * existing row (and re-activates it) instead of creating a duplicate. Prisma turns this upsert on a
- * unique field into a single atomic INSERT ... ON CONFLICT, which is safe under concurrent requests.
+ * Registers a Web Push subscription. Idempotent: `endpoint` is unique, so the same browser
+ * subscribing again updates its existing row (keys refreshed, re-activated) instead of creating a
+ * duplicate. Prisma turns this upsert on a unique field into a single atomic INSERT ... ON CONFLICT,
+ * which is safe under concurrent requests.
  *
- * Delivery is out of scope: tokens are only stored (the frontend currently sends a placeholder token).
+ * Delivery lives in services/notify/webPushSender.ts; this only stores the subscription.
  */
-export async function subscribeDevice(deviceToken: string): Promise<void> {
+export async function subscribeDevice(
+  { endpoint, p256dh, auth }: PushSubscriptionInput,
+  { browser, os }: DeviceInfo,
+): Promise<void> {
   await prisma.pushSubscription.upsert({
-    where: { deviceToken },
-    create: { deviceToken },
-    update: { isActive: true, updatedAt: new Date() },
+    where: { endpoint },
+    create: { endpoint, p256dh, auth, browser, os },
+    update: { p256dh, auth, browser, os, isActive: true, updatedAt: new Date() },
   });
 }

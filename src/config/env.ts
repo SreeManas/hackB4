@@ -6,5 +6,7 @@ export const env = {
   /** Mocks are used when no API is configured, or when explicitly forced. */
   useMocks: !apiBaseUrl || import.meta.env.VITE_USE_MOCKS === 'true',
   siteUrl: (import.meta.env.VITE_SITE_URL ?? 'https://hackb4.com').replace(/\/+$/, ''),
+  /** Public Web Push (VAPID) key the browser subscribes with. The private key never reaches the frontend. */
+  vapidPublicKey: (import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '').trim(),
   isDev: import.meta.env.DEV,
 } as const;

@@ -136,34 +136,33 @@ Shared behaviour of all forms (hook: src/hooks/useSubmit.ts):
 
 
 --------------------------------------------------------------------------------
-5. PUSH NOTIFICATION OPT-IN   (/events page)       ** NOT FINISHED **
+5. PUSH NOTIFICATION OPT-IN   (/events page)
 --------------------------------------------------------------------------------
-  File: src/features/engagement/PushOptIn.tsx
-  Spec section 4.3.
+  Files: src/features/engagement/PushOptIn.tsx, webPush.ts, public/sw.js,
+         public/manifest.webmanifest
+  Spec section 4.3.  Standards-based Web Push (VAPID); no FCM/OneSignal.
 
-  Current behaviour:
+  Behaviour:
   1. On /events, 2 seconds after load, a card slides in bottom-left:
      "Stay Updated - Get notified about upcoming hackathons & placement
      drives." [Enable] [Not Now] [X]
   2. Not Now / X -> hidden forever for this browser
      (localStorage key "push_optin_interacted" = true).
-  3. Enable -> POST /notifications/subscribe
-        { "token": "fcm-token-<random uuid>" }     <- FAKE TOKEN
-     2xx -> hidden forever.  error -> "Could not subscribe right now."
+  3. Enable (a click, so the browser may show its permission prompt):
+     check support -> Notification.requestPermission() -> register /sw.js
+     -> PushManager.subscribe with VITE_VAPID_PUBLIC_KEY -> POST
+     /notifications/subscribe { endpoint, keys: { p256dh, auth } }.
+     2xx -> hidden forever.
+  4. Failures keep the card and show a message: blocked (denied), closed
+     prompt, unsupported browser (on iOS: add the site to the Home Screen
+     first), push service unavailable, or a generic "Could not subscribe".
+  5. Mock mode: with no VITE_API_BASE_URL and no VITE_VAPID_PUBLIC_KEY a fake
+     subscription goes to the mock API. Whenever a backend is configured the
+     real browser flow is always used.
 
-  What is missing to make push real (needs backend + frontend together):
-   a) Choose FCM or OneSignal; create the project; get the public VAPID key
-      / web config (public values -> VITE_* env vars).
-   b) Frontend: add a service worker file (e.g. public/firebase-messaging-
-      sw.js), call Notification.requestPermission(), get the real token, send
-      it instead of the fake one. Replace the TODO(backend) line in
-      PushOptIn.tsx.
-   c) Backend: store tokens (upsert, device_token UNIQUE), mark inactive
-      when FCM says a token is invalid, and build a way (admin tool / script)
-      to send a notification to all tokens or by interest (spec: "filter by
-      interests, e.g. Hackathons only" - that would need an "interests"
-      field in the request body; agree on it first).
-   The FCM SERVER key / service account stays on the backend only.
+  Sending: `npm run push:send` in server/ (broadcast only; no interest
+  filter yet - that would need an "interests" field; agree on it first).
+  The VAPID private key stays on the backend only.
 
 
 --------------------------------------------------------------------------------

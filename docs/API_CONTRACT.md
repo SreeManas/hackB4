@@ -22,7 +22,7 @@ the message is shown to the user in forms.
 | GET    | `/ad-campaigns/active`     | `?page=/events`                                       | `AdCampaign` or `null`                                                         |
 | POST   | `/service-inquiries`       | `ServiceInquiry`                                      | `{ success: boolean, message?: string }`                                       |
 | POST   | `/contact`                 | `{ name, email, message }`                            | `{ success: boolean, message?: string }`                                       |
-| POST   | `/notifications/subscribe` | `{ token }`                                           | `{ success: boolean }`                                                         |
+| POST   | `/notifications/subscribe` | `{ endpoint, keys: { p256dh, auth } }`                | `{ success: boolean }`                                                         |
 | POST   | `/newsletter/subscribe`    | `{ email, source? }`                                  | `{ success: boolean, message?: string }` — repeat sign-ups should also succeed |
 | GET    | `/stats`                   | —                                                     | `PlatformStats` (`{ builders, hackathons, projects, countries, submissions }`) |
 | GET    | `/projects`                | `?featured=true`                                      | `Project[]`                                                                    |

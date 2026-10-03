@@ -388,19 +388,17 @@ B4.  POST /notifications/subscribe
 
   Purpose     Browser push notification opt-in ("Stay Updated" prompt on
               /events).
-  Body        { "token": "..." }
+  Body        { "endpoint": "https://...", "keys": { "p256dh": "...", "auth": "..." } }
+              (the browser's PushSubscription, as JSON)
   Response    201 { "success": true }
 
-  CURRENT STATE - READ THIS:
-  Push is NOT wired up yet. The frontend currently sends a FAKE token
-  ("fcm-token-<random uuid>") and does not ask the browser for notification
-  permission or register a service worker. See file 07 section 5 and file 08
-  for what's needed. Until then, you can store tokens but they can't receive
-  pushes.
-
-  When real: token = the FCM registration token (or OneSignal player id).
-  Upsert on token (spec DDL: device_token UNIQUE). The spec's browser/os
-  columns can be derived from the User-Agent header.
+  Real Web Push (VAPID) - no FCM/OneSignal. The endpoint must be https on a
+  known push service host (it is later POSTed to by the server); the keys must
+  be base64url (p256dh 65 bytes, auth 16 bytes). Invalid -> 400 { message }.
+  Upsert on endpoint (UNIQUE): a repeat subscribe refreshes the keys and
+  re-activates the row. browser/os are derived from the User-Agent header.
+  Sending is done by the CLI `npm run push:send` (see server/README.md);
+  404/410 from the push service mark the row is_active = false.
 
 
 --------------------------------------------------------------------------------
@@ -441,5 +439,5 @@ B5.  POST /events/:id/conversions
  B1  POST   /contact                   {name,email,message}          {success}
  B2  POST   /service-inquiries         ServiceInquiry                {success}
  B3  POST   /newsletter/subscribe      {email,source?}               {success}
- B4  POST   /notifications/subscribe   {token}                       {success}
+ B4  POST   /notifications/subscribe   {endpoint, keys:{p256dh,auth}}   {success}
  B5  POST   /events/:id/conversions    {source,medium,campaign?}     204

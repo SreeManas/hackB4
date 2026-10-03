@@ -14,6 +14,7 @@ import type {
   Event,
   EventCategory,
   MutationResult,
+  PushSubscriptionPayload,
   Service,
   ServiceInquiry,
   TeamMember,
@@ -34,7 +35,7 @@ export interface Api {
   getActiveAdCampaign(page: string, opts?: Opts): Promise<AdCampaign | null>;
   submitServiceInquiry(data: ServiceInquiry): Promise<MutationResult>;
   submitContactForm(data: ContactMessage): Promise<MutationResult>;
-  subscribeNotification(token: string): Promise<MutationResult>;
+  subscribeNotification(subscription: PushSubscriptionPayload): Promise<MutationResult>;
   /** `source` tells the backend where the sign-up came from, e.g. 'footer' or 'early_access:teams'. */
   subscribeNewsletter(email: string, source?: string): Promise<MutationResult>;
   trackConversion(eventId: string, payload: ConversionPayload): Promise<void>;
@@ -79,7 +80,7 @@ const httpApi: Api = {
     request<AdCampaign | null>(`/ad-campaigns/active?page=${encodeURIComponent(page)}`, opts),
   submitServiceInquiry: (data) => request('/service-inquiries', { method: 'POST', body: data }),
   submitContactForm: (data) => request('/contact', { method: 'POST', body: data }),
-  subscribeNotification: (token) => request('/notifications/subscribe', { method: 'POST', body: { token } }),
+  subscribeNotification: (subscription) => request('/notifications/subscribe', { method: 'POST', body: subscription }),
   subscribeNewsletter: (email, source) => request('/newsletter/subscribe', { method: 'POST', body: { email, source } }),
   trackConversion: async (eventId, payload) => {
     // Only real events are tracked: the API-provided UUID, never a slug or placeholder id.
@@ -162,9 +163,9 @@ const mockApi: Api = {
     if (env.isDev) console.info('[mock api] contact form', data);
     return { success: true };
   },
-  async subscribeNotification(token) {
+  async subscribeNotification(subscription) {
     await latency(500);
-    if (env.isDev) console.info('[mock api] push token', token);
+    if (env.isDev) console.info('[mock api] push subscription', new URL(subscription.endpoint).host);
     return { success: true };
   },
   async subscribeNewsletter(email, source) {

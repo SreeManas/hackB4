@@ -33,7 +33,7 @@
   [ ] B1  POST /contact                + email alert to the team
   [ ] B2  POST /service-inquiries      + email alert to sales
   [ ] B3  POST /newsletter/subscribe   idempotent upsert, stores source
-  [ ] B4  POST /notifications/subscribe  (stores token; real push later)
+  [ ] B4  POST /notifications/subscribe  (Web Push subscription; send via `npm run push:send`)
   [ ] B5  POST /events/:id/conversions   fast insert, 204
 
   Content / admin
@@ -65,7 +65,8 @@
      (Today, with empty lists: the activity ticker hides itself, Projects
      shows "No projects in this domain yet", and the builders / team
      openings areas are simply blank.)
-  5. Push notifications: FCM or OneSignal? Who owns the account?
+  5. Push notifications: DECIDED - standards-based Web Push (VAPID), no vendor account.
+     Still needed: a VAPID keypair in the server/frontend env (see server/README.md).
   6. Who receives contact / inquiry alert emails? Which email service
      (SES, Resend, SendGrid...)?
   7. utm_campaign is fixed to "hackathon_2026" for every event. OK, or
@@ -82,7 +83,7 @@
 3. KNOWN LIMITATIONS / TECH DEBT IN THE FRONTEND  (FYI, not blockers)
 --------------------------------------------------------------------------------
 
-  - Push opt-in sends a fake token (file 07 section 5). Needs joint work.
+  - Push is broadcast-only (no interest targeting) and iOS needs the site installed to the Home Screen.
   - No pagination: /events must return everything. Fine up to ~100 events.
   - Event search is client-side over the loaded list only.
   - "N TEAMS LOOKING FOR MEMBERS" on Home counts the items returned by

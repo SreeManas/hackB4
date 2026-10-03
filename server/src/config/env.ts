@@ -53,4 +53,10 @@ export const env = {
   notifyFromEmail: process.env.NOTIFY_FROM_EMAIL?.trim() ?? '',
   notifyContactToEmail: process.env.NOTIFY_CONTACT_TO_EMAIL?.trim() ?? '',
   notifyInquiryToEmail: process.env.NOTIFY_INQUIRY_TO_EMAIL?.trim() ?? '',
+  /** Browser Web Push (VAPID). All three are optional; see config/webPush.ts. */
+  vapid: {
+    publicKey: process.env.VAPID_PUBLIC_KEY?.trim() ?? '',
+    privateKey: process.env.VAPID_PRIVATE_KEY?.trim() ?? '',
+    subject: process.env.VAPID_SUBJECT?.trim() ?? '',
+  },
 } as const;

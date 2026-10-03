@@ -1,0 +1,14 @@
+{
+  "name": "HACKB4",
+  "short_name": "HACKB4",
+  "description": "Hackathons, placement drives and campus tech events.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

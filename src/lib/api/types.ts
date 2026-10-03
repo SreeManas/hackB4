@@ -88,6 +88,12 @@ export interface ContactMessage {
   message: string;
 }
 
+/** A browser `PushSubscription.toJSON()`: where to send the push, and the keys its payload is encrypted with. */
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
 export interface ConversionPayload {
   source: string;
   medium: string;
